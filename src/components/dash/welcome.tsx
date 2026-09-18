@@ -1,5 +1,5 @@
 "use client";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import clsx from "clsx";
 import { X } from "lucide-react";
 
@@ -15,11 +15,18 @@ export function WelcomeModal({ storageKey, title, tone, rows, children }: {
     () => true,
   );
   const [closed, setClosed] = useState(false);
-  if (seen || closed) return null;
+  const show = !seen && !closed;
   const close = () => {
     try { localStorage.setItem(storageKey, "1"); } catch {}
     setClosed(true);
   };
+  useEffect(() => {
+    if (!show) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { try { localStorage.setItem(storageKey, "1"); } catch {} setClosed(true); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [show, storageKey]);
+  if (!show) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-[2px] p-0 md:p-4" onClick={close}>
       <div className={clsx("card w-full md:max-w-md rounded-b-none md:rounded-b-[14px] overflow-hidden rise",

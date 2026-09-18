@@ -24,15 +24,15 @@ export default async function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 rise" style={{ animationDelay: "40ms" }}>
-          <TodayCard plan={s.todayPlan} done={s.todayDone} />
+          <TodayCard plan={s.todayPlan} done={s.todayDone} today={s.today} />
         </div>
-        <div className="rise" style={{ animationDelay: "80ms" }}><GoalCard s={s} /></div>
+        <div className="space-y-4 rise" style={{ animationDelay: "80ms" }}>
+          <GoalCard s={s} />
+          <WeeklyGoalCard week={s.week} />
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 rise" style={{ animationDelay: "120ms" }}><CostOfToday s={s} /></div>
-        <div className="rise" style={{ animationDelay: "140ms" }}><WeeklyGoalCard week={s.week} /></div>
-      </div>
+      <div className="rise" style={{ animationDelay: "120ms" }}><CostOfToday s={s} /></div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2 rise" style={{ animationDelay: "160ms" }}>
@@ -118,7 +118,7 @@ function GoalCard({ s }: { s: UserState }) {
   const p = s.projection;
   const gap = p ? target - p.projected : null;
   return (
-    <div className="card p-5 h-full flex flex-col">
+    <div className="card p-5 flex flex-col">
       <div className="flex items-center justify-between">
         <span className="label inline-flex items-center gap-1.5"><Target size={12} /> Goal</span>
         {s.profile.dreamColleges.length > 0 && <span className="text-[12px] text-muted truncate max-w-[60%]">{s.profile.dreamColleges.join(" · ")}</span>}

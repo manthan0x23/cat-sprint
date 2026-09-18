@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, BellRing, Brain, CalendarRange, TrendingUp } from "lucide-react";
 import { auth, devLoginEnabled } from "@/auth";
 import { Logo } from "@/components/logo";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { daysToExam, istNow } from "@/lib/cat";
 import { devSignIn, signInWithGoogle } from "./actions";
 
@@ -15,7 +16,10 @@ export default async function Landing() {
       <div className="grid-bg absolute inset-0 -z-10 h-[640px]" />
       <header className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
         <Logo />
-        <form action={signInWithGoogle}><button className="btn btn-ghost btn-sm">Sign in</button></form>
+        <div className="flex items-center gap-2">
+          <ThemeSwitcher />
+          <form action={signInWithGoogle}><button className="btn btn-ghost btn-sm">Sign in</button></form>
+        </div>
       </header>
 
       <section className="mx-auto max-w-3xl px-4 pt-16 md:pt-24 text-center rise">
