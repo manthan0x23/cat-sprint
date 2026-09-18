@@ -1,0 +1,10 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "cat-sprint-cron",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "vars": { "APP_URL": "https://cat-sprint.vercel.app" },
+  // every 30 min, around the clock (the app itself decides per-user IST timing)
+  "triggers": { "crons": ["*/30 * * * *"] }
+}

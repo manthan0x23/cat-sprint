@@ -1,0 +1,6 @@
+{
+  "name": "cat-sprint-cron",
+  "private": true,
+  "scripts": { "deploy": "wrangler deploy", "tail": "wrangler tail" },
+  "devDependencies": { "wrangler": "^4", "@cloudflare/workers-types": "^5" }
+}
