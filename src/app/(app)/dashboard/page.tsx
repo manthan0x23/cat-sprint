@@ -21,6 +21,9 @@ export default async function Dashboard() {
     <div className="space-y-4">
       <Welcome s={s} />
       <Hero s={s} left={left} />
+      <div className="rise" style={{ animationDelay: "20ms" }}>
+        <Suspense fallback={<CoachSkeleton />}><CoachCard state={s} /></Suspense>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 rise" style={{ animationDelay: "40ms" }}>
@@ -57,7 +60,6 @@ export default async function Dashboard() {
             </div>
             <div className="mt-4"><Heatmap history={s.stats.history} today={s.today} /></div>
           </div>
-          <Suspense fallback={<CoachSkeleton />}><CoachCard state={s} /></Suspense>
         </div>
       </div>
     </div>
