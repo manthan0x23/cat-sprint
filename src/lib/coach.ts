@@ -85,14 +85,14 @@ export function classifyCheckpoint(s: UserState, ctx: CoachContext, hour: number
 export const TITLES: Record<Situation, (s: UserState) => string> = {
   morning: () => "Today's plan",
   "morning-mock": (s) => `${s.todayPlan?.mockName ?? "Mock"} day`,
-  "morning-comeback": () => "About yesterday…",
-  "morning-streak": (s) => `🔥 ${s.stats.streak}-day streak`,
-  applause: () => "Day closed 👏",
-  almost: () => "So close. Finish it",
+  "morning-comeback": () => "Yesterday's shortfall",
+  "morning-streak": (s) => `${s.stats.streak}-day streak`,
+  applause: () => "Day complete",
+  almost: () => "Almost there",
   "evening-on-track": () => "Evening check-in",
   behind: (s) => `${fmtHour(s.hour)} check-in`,
   "way-behind": (s) => `${fmtHour(s.hour)}: you're falling behind`,
-  ignored: () => "Still nothing?",
+  ignored: () => "No progress since last reminder",
   "last-call": () => "Last call for today",
   night: () => "Day summary",
   "mock-eve": () => "Mock tomorrow",
@@ -141,24 +141,20 @@ const SITUATION_BRIEF: Record<Situation, string> = {
 };
 
 const INTENSITY: Record<string, string> = {
-  gentle: "Tone: warm, supportive coach. Encourage, never shame.",
-  firm: "Tone: direct, no-nonsense coach. Honest about the cost, zero fluff.",
-  savage: "Tone: savage friend who roasts you because they want you in an IIM. Witty taunts about the behaviour (never about identity, intelligence or family). Sharp, a bit cheeky, still ends with a concrete action.",
-};
-const LANGUAGE: Record<string, string> = {
-  english: "Language: English.",
-  hinglish: "Language: Hinglish (Hindi + English mixed, written in Latin script, the way Indian college friends text, e.g. 'bhai', 'chal', 'abhi').",
+  gentle: "Tone: supportive, encouraging coach. Acknowledge effort, never shame.",
+  firm: "Tone: direct, professional coach. State the facts and the cost plainly, no fluff.",
+  strict: "Tone: strict, demanding mentor. Blunt about missed work and its cost, holds them to their stated goal, but always professional: no sarcasm, taunts, slang or insults.",
 };
 
 export function prompt(s: UserState, sit: Situation, ctx?: CoachContext) {
   const tone = s.profile.coachIntensity;
-  // applause/streak should never be savage-negative
-  const effectiveTone = (sit === "applause" || sit === "morning-streak") && tone === "savage" ? "firm" : tone;
+  // praise is always delivered straight, even in strict mode
+  const effectiveTone = (sit === "applause" || sit === "morning-streak") && tone === "strict" ? "firm" : tone;
   return `${facts(s, ctx)}
 
 SITUATION: ${SITUATION_BRIEF[sit]}
-${INTENSITY[effectiveTone]}
-${LANGUAGE[s.profile.coachLanguage]}
+${INTENSITY[effectiveTone] ?? INTENSITY.firm}
+Language: clear, professional English. No slang, no Hindi words, no emojis.
 Format: a phone notification. Max 2 sentences, under 260 characters. Use at least one concrete number from the facts. No hashtags, no quotes around the message, no greeting like "Hey".`;
 }
 
@@ -170,69 +166,50 @@ function pick<T>(arr: T[], key: string) {
 }
 
 export function fallback(s: UserState, sit: Situation, ctx?: CoachContext): string {
-  const hi = s.profile.coachLanguage === "hinglish";
-  const savage = s.profile.coachIntensity === "savage";
+  const strict = s.profile.coachIntensity === "strict";
   const rem = remaining(s);
   const pct = Math.round((s.stats.today.ratio || 0) * 100);
   const left = daysToExam(s.today);
   const y = yesterdayRow(s);
   const ign = ctx ? ignoredYesterday(s, ctx) : 0;
   const cost = s.impact.percentileIfSkip != null && s.impact.percentileIfDone != null
-    ? hi ? `Skip kiya toh projection ${s.impact.percentileIfDone.toFixed(1)} → ${s.impact.percentileIfSkip.toFixed(1)}.` : `Skipping drops your projection ${s.impact.percentileIfDone.toFixed(1)} → ${s.impact.percentileIfSkip.toFixed(1)} %ile.`
-    : hi ? `Skip kiya toh backlog +${minutesToH(rem.minutes)}.` : `Skipping adds ${minutesToH(rem.minutes)} to your backlog.`;
+    ? `Skipping lowers your projection from ${s.impact.percentileIfDone.toFixed(1)} to ${s.impact.percentileIfSkip.toFixed(1)} percentile.`
+    : `Skipping adds ${minutesToH(rem.minutes)} to your backlog.`;
   const friend = ctx?.friendsDoneToday[0];
   const key = s.today + sit;
+  const mockName = s.todayPlan?.mockName ?? "Your mock";
 
   switch (sit) {
     case "morning":
-      return hi
-        ? `${left} din bache. Aaj ka target: ${rem.text}. Pehla block ${fmtHour(s.profile.studyStartHour + 1)} se pehle khatam karo.`
-        : `${left} days left. Today: ${rem.text}. Get the first block done before ${fmtHour(s.profile.studyStartHour + 1)}.`;
+      return `${left} days to CAT. Today's plan: ${rem.text}. Complete the first block before ${fmtHour(s.profile.studyStartHour + 1)}.`;
     case "morning-mock":
-      return hi
-        ? `${s.todayPlan?.mockName ?? "Mock"} aaj. Ek sitting mein do, phir utna hi time analysis ko do. Percentile wahi se hilta hai.`
-        : `${s.todayPlan?.mockName ?? "Mock"} today. One sitting, real exam slot, then give the analysis as long as the mock. That's where the percentile moves.`;
+      return `${mockName} is scheduled today. Attempt it in one sitting at your CAT slot, then spend as long on the analysis as on the mock itself.`;
     case "morning-comeback": {
-      const ignLine = ign ? (hi ? ` ${ign} reminders ignore kiye.` : ` You ignored ${ign} reminder${ign > 1 ? "s" : ""}.`) : "";
-      return hi
-        ? `Kal sirf ${Math.round((y?.ratio ?? 0) * 100)}% hua.${ignLine} Backlog ab ${minutesToH(s.stats.debtMinutes)}. ${savage ? "IIM wale wait nahi karenge. " : ""}Aaj comeback: pehle 1 DILR set, abhi.`
-        : `Yesterday: ${Math.round((y?.ratio ?? 0) * 100)}% done.${ignLine} Backlog is now ${minutesToH(s.stats.debtMinutes)}. ${savage ? "The IIM seat isn't going to wait for you. " : ""}Comeback starts with 1 DILR set, now.`;
+      const ignLine = ign ? ` ${ign} reminder${ign > 1 ? "s were" : " was"} not acted on.` : "";
+      return `Yesterday you completed ${Math.round((y?.ratio ?? 0) * 100)}% of the plan.${ignLine} Your backlog is now ${minutesToH(s.stats.debtMinutes)}.${strict ? ` That is not the pace a ${s.profile.targetPercentile} percentile requires.` : ""} Start today with one DILR set.`;
     }
     case "morning-streak":
-      return hi
-        ? `${s.stats.streak} din ki streak 🔥 Aaj bhi wahi: ${rem.text}.`
-        : `${s.stats.streak}-day streak. Keep the chain: ${rem.text} today.`;
+      return `${s.stats.streak} consecutive days completed. Keep it going today: ${rem.text}.`;
     case "applause":
-      return hi
-        ? `Aaj ka plan khatam. ${minutesToH(s.stats.today.done)} ka kaam. Solid. Ab thoda rest, kal phir.`
-        : `Full plan done: ${minutesToH(s.stats.today.done)} of work. That's how ${s.profile.targetPercentile} gets built. Rest well.`;
+      return `Today's plan is complete: ${minutesToH(s.stats.today.done)} of focused work. This is the consistency a ${s.profile.targetPercentile} percentile is built on. Rest well.`;
     case "almost":
-      return hi
-        ? `${pct}% ho gaya, bas ${rem.text} bacha (~${minutesToH(rem.minutes)}). Khatam karke hi uthna.`
-        : `${pct}% done. Only ${rem.text} left (~${minutesToH(rem.minutes)}). Close it out.`;
+      return `${pct}% complete. Only ${rem.text} remain (about ${minutesToH(rem.minutes)}). Finish the day.`;
     case "evening-on-track":
-      return hi ? `Pace sahi hai. Raat tak: ${rem.text}.` : `On pace. Tonight's finish line: ${rem.text}.`;
+      return `You are on pace. Remaining for tonight: ${rem.text}.`;
     case "behind":
     case "way-behind":
-      return pick(hi
-        ? [`${fmtHour(s.hour)} ho gaye aur sirf ${pct}% hua. ${cost} Abhi 1 DILR set start karo.`,
-           `${friend ? `${friend} aaj ka khatam kar chuka hai. ` : ""}Tum ${pct}% pe ho. ${cost} Abhi 20 QA.`]
-        : [`It's ${fmtHour(s.hour)} and you're at ${pct}%. ${cost} Start 1 DILR set now.`,
-           `${friend ? `${friend} has already finished today. ` : ""}You're at ${pct}%. ${cost} Next 45 min: 20 QA.`], key);
+      return pick([
+        `It is ${fmtHour(s.hour)} and you are at ${pct}% of today's plan. ${cost} Start one DILR set now.`,
+        `${friend ? `${friend} has already completed today's plan. ` : ""}You are at ${pct}%. ${cost} Next 45 minutes: 20 QA questions.`,
+      ], key);
     case "ignored":
-      return hi
-        ? `Pichla reminder ignore hua, ek bhi question log nahi. ${savage ? "Netflix CAT nahi dilayega. " : ""}Sirf 25 min: 10 QA. Chalo.`
-        : `Last reminder: ignored, nothing logged since. ${savage ? "Scrolling won't get you into an IIM. " : ""}Just 25 minutes: 10 QA. Go.`;
+      return `No progress has been logged since the last reminder.${strict ? ` Your stated goal is ${s.profile.targetPercentile}; today's gap works against it.` : ""} Commit 25 minutes now: 10 QA questions.`;
     case "last-call":
-      return hi
-        ? `Aaj ka ${pct}% hi hua. Bacha: ${rem.text}. Kam se kam 1 DILR set karke so jao, warna backlog +${minutesToH(rem.minutes)}.`
-        : `Day's at ${pct}%. Left: ${rem.text}. Do at least 1 DILR set before bed, or ${minutesToH(rem.minutes)} rolls into backlog.`;
+      return `Today stands at ${pct}%. Remaining: ${rem.text}. Complete at least one DILR set before you stop, or ${minutesToH(rem.minutes)} moves to your backlog.`;
     case "night":
       return nightSummary(s);
     case "mock-eve":
-      return hi
-        ? `Kal ${s.tomorrowPlan?.mockName ?? "mock"} hai. 11 baje tak so jao, real slot pe do, baad mein 2 ghante analysis.`
-        : `${s.tomorrowPlan?.mockName ?? "Mock"} tomorrow. Sleep by 11, take it at your real CAT slot, block 2 hours after for analysis.`;
+      return `${s.tomorrowPlan?.mockName ?? "Mock"} is tomorrow. Sleep by 11 PM, take it at your CAT slot, and reserve two hours afterwards for analysis.`;
   }
 }
 

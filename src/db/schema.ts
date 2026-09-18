@@ -54,8 +54,7 @@ export const profiles = pgTable("profile", {
   username: text("username").unique(), // lowercase [a-z0-9_]{3,20}
   visibility: text("visibility").$type<"friends" | "public">().notNull().default("friends"),
   showMocks: boolean("showMocks").notNull().default(true),
-  coachLanguage: text("coachLanguage").$type<"english" | "hinglish">().notNull().default("english"),
-  coachIntensity: text("coachIntensity").$type<"gentle" | "firm" | "savage">().notNull().default("firm"),
+  coachIntensity: text("coachIntensity").$type<"gentle" | "firm" | "strict">().notNull().default("firm"),
   targetPercentile: real("targetPercentile").notNull().default(99),
   dreamColleges: jsonb("dreamColleges").$type<string[]>().notNull().default([]),
   why: text("why").notNull().default(""),

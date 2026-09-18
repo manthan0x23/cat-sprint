@@ -129,7 +129,7 @@ describe("coach classification", async () => {
       impact: skipImpact(stats, [], "2026-09-18"),
       todayPlan: { ...plans[1], mockName: null, mockDone: false, analysisDone: false, note: null },
       tomorrowPlan: null, nextMock: null, plans, todayDone: doneByDate["2026-09-18"],
-      profile: { studyStartHour: 7, studyEndHour: 23, targetPercentile: 99, dreamColleges: [], why: "", weakSections: [], coachLanguage: "english", coachIntensity: "firm" },
+      profile: { studyStartHour: 7, studyEndHour: 23, targetPercentile: 99, dreamColleges: [], why: "", weakSections: [], coachIntensity: "firm" },
     } as never;
   };
   const ctx = { sentToday: [], sentYesterday: [], friendsDoneToday: [], friendsCount: 0 };

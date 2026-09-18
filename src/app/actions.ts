@@ -255,10 +255,8 @@ export async function saveNotificationSettings(formData: FormData) {
     notifyWhatsapp: z.boolean(),
     callmebotPhone: z.string().max(20).regex(/^\+?\d*$/, "Phone must be digits with country code, e.g. +919876543210"),
     callmebotKey: z.string().max(40),
-    coachLanguage: z.enum(["english", "hinglish"]),
-    coachIntensity: z.enum(["gentle", "firm", "savage"]),
+    coachIntensity: z.enum(["gentle", "firm", "strict"]),
   }).parse({
-    coachLanguage: formData.get("coachLanguage") ?? "english",
     coachIntensity: formData.get("coachIntensity") ?? "firm",
     notifyPush: formData.get("notifyPush") === "on",
     notifyWhatsapp: formData.get("notifyWhatsapp") === "on",
@@ -336,7 +334,7 @@ export async function sendFriendRequest(rawUsername: string): Promise<{ ok: bool
   const other = await db.query.profiles.findFirst({ where: eq(profiles.username, u) });
   if (!other) return { ok: false, message: `No one with username @${u}` };
   const rel = await relation(userId, other.userId);
-  if (rel.kind === "self") return { ok: false, message: "That's you 🙂" };
+  if (rel.kind === "self") return { ok: false, message: "That's your own username" };
   if (rel.kind === "friends") return { ok: false, message: `You're already friends with @${u}` };
   if (rel.kind === "outgoing") return { ok: false, message: "Request already sent" };
   if (rel.kind === "incoming") {
@@ -382,8 +380,8 @@ export async function sendNudgeToFriend(otherUserId: string): Promise<string> {
   const claimed = await db.insert(notificationsSent).values({ userId: otherUserId, date, kind: key, body: "nudge" }).onConflictDoNothing().returning();
   if (!claimed.length) return "You already nudged them today";
   const first = (me?.name ?? "A friend").split(" ")[0];
-  const body = `${first} is studying and wants you in the game too. Log your first block now.`;
-  await sendPush(them.pushSubscriptions, { title: `👊 Nudge from ${first}`, body, tag: key });
+  const body = `${first} is studying and sent you a reminder. Log your first block now.`;
+  await sendPush(them.pushSubscriptions, { title: `Reminder from ${first}`, body, tag: key });
   if (them.notifyWhatsapp && them.callmebotPhone && them.callmebotKey) await sendWhatsApp(them.callmebotPhone, them.callmebotKey, body);
   return "Nudge sent";
 }

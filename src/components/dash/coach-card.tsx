@@ -22,7 +22,7 @@ export async function CoachCard({ state }: { state: UserState }) {
       </div>
       <p className="mt-3 text-[15px] leading-relaxed text-ink">{text}</p>
       <p className="mt-3 text-[11px] text-muted">
-        {ai ? "Written by Qwen from your numbers" : "Rule-based (AI unavailable or daily budget used)"} · {state.profile.coachIntensity}, {state.profile.coachLanguage}
+        {ai ? "Written by Qwen from your numbers" : "Rule-based (AI unavailable or daily budget used)"} · {state.profile.coachIntensity} tone
       </p>
     </div>
   );

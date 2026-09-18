@@ -69,19 +69,12 @@ export default async function SettingsPage() {
 
       <form action={saveNotificationSettings} className="card p-5 space-y-5">
         <div className="label">Coach & notifications</div>
-        <div className="grid grid-cols-2 gap-3">
-          <label><span className="text-[13px] text-muted">Coach language</span>
-            <select name="coachLanguage" defaultValue={p.coachLanguage} className="input mt-1">
-              <option value="english">English</option>
-              <option value="hinglish">Hinglish</option>
-            </select></label>
-          <label><span className="text-[13px] text-muted">Coach intensity</span>
-            <select name="coachIntensity" defaultValue={p.coachIntensity} className="input mt-1">
-              <option value="gentle">Gentle: supportive</option>
-              <option value="firm">Firm: direct, no fluff</option>
-              <option value="savage">Savage: roasts you into studying</option>
-            </select></label>
-        </div>
+        <label className="block"><span className="text-[13px] text-muted">Coach tone</span>
+          <select name="coachIntensity" defaultValue={p.coachIntensity} className="input mt-1">
+            <option value="gentle">Supportive</option>
+            <option value="firm">Direct</option>
+            <option value="strict">Strict</option>
+          </select></label>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="font-medium text-[14.5px]">Push notifications</div>

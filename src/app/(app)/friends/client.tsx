@@ -40,7 +40,7 @@ export function NudgeButton({ userId }: { userId: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
-    <button className="btn btn-ghost btn-sm" disabled={pending || !!msg} title="Send them a push/WhatsApp nudge (once a day)"
+    <button className="btn btn-ghost btn-sm" disabled={pending || !!msg} title="Send them a reminder (once a day)"
       onClick={() => start(async () => setMsg(await sendNudgeToFriend(userId)))}>
       <Zap size={12} /> {msg ?? "Nudge"}
     </button>
