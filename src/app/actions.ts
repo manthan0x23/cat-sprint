@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { dayPlans, friendships, mockResults, notificationsSent, profiles, progressLogs, templates, users, type PushSub, type Targets } from "@/db/schema";
-import { EXAM_DATE, istNow, SECTIONS, type Section } from "@/lib/cat";
+import { dayPlans, friendships, mockResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PushSub, type Targets } from "@/db/schema";
+import { EXAM_DATE, istNow, SECTIONS, weekStartOf, type Section } from "@/lib/cat";
 import { generatePlan } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
-import { sendEmail, sendPush, sendWhatsApp } from "@/lib/notify";
+import { sendEmail, sendPush } from "@/lib/notify";
 import { cachedAI } from "@/lib/ai";
 import { loadUserState } from "@/lib/data";
 import { dashboardSlot, fallback, prompt } from "@/lib/coach";
@@ -148,6 +148,7 @@ export async function toggleMockFlag(date: string, field: "mockDone" | "analysis
 export async function updateDay(date: string, input: { type: "practice" | "mock" | "rest"; targets: Targets; mockName?: string | null; note?: string | null; tag?: string | null }) {
   const userId = await uid();
   dateSchema.parse(date);
+  if (date < istNow().date) throw new Error("Past days are locked");
   const type = z.enum(["practice", "mock", "rest"]).parse(input.type);
   const targets = targetsSchema.parse(input.targets);
   const mockName = type === "mock" ? (z.string().max(80).nullish().parse(input.mockName) || "Mock") : null;
@@ -252,41 +253,29 @@ export async function saveNotificationSettings(formData: FormData) {
   const userId = await uid();
   const data = z.object({
     notifyPush: z.boolean(),
-    notifyWhatsapp: z.boolean(),
     notifyEmail: z.boolean(),
-    callmebotPhone: z.string().max(20).regex(/^\+?\d*$/, "Phone must be digits with country code, e.g. +919876543210"),
-    callmebotKey: z.string().max(40),
     coachIntensity: z.enum(["gentle", "firm", "strict"]),
   }).parse({
     coachIntensity: formData.get("coachIntensity") ?? "firm",
     notifyPush: formData.get("notifyPush") === "on",
-    notifyWhatsapp: formData.get("notifyWhatsapp") === "on",
     notifyEmail: formData.get("notifyEmail") === "on",
-    callmebotPhone: String(formData.get("callmebotPhone") ?? "").replace(/\s/g, ""),
-    callmebotKey: String(formData.get("callmebotKey") ?? "").trim(),
   });
-  await db.update(profiles).set({
-    ...data,
-    callmebotPhone: data.callmebotPhone || null,
-    callmebotKey: data.callmebotKey || null,
-  }).where(eq(profiles.userId, userId));
+  await db.update(profiles).set(data).where(eq(profiles.userId, userId));
   refresh();
 }
 
-export async function sendTestNotification(): Promise<{ push: string; whatsapp: string; email: string }> {
+export async function sendTestNotification(): Promise<{ push: string; email: string }> {
   const userId = await uid();
   const p = await db.query.profiles.findFirst({ where: eq(profiles.userId, userId) });
-  if (!p) return { push: "no profile", whatsapp: "no profile", email: "no profile" };
+  if (!p) return { push: "no profile", email: "no profile" };
   const msg = "Test from CAT Sprint. Notifications are working. Now go solve a DILR set.";
   const push = await sendPush(p.pushSubscriptions, { title: "CAT Sprint", body: msg, tag: "test" });
   if (push.dead.length) {
     await db.update(profiles).set({ pushSubscriptions: p.pushSubscriptions.filter((s) => !push.dead.includes(s.endpoint)) }).where(eq(profiles.userId, userId));
   }
-  let whatsapp = "not configured";
-  if (p.callmebotPhone && p.callmebotKey) whatsapp = (await sendWhatsApp(p.callmebotPhone, p.callmebotKey, msg)) ? "sent" : "failed (check phone/key)";
   const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
   const email = !process.env.SMTP_HOST ? "SMTP not configured" : u?.email ? ((await sendEmail(u.email, "Test notification", msg)) ? `sent to ${u.email}` : "failed") : "no email";
-  return { push: push.sent ? `sent to ${push.sent} device(s)` : p.pushSubscriptions.length ? "failed" : "no device subscribed", whatsapp, email };
+  return { push: push.sent ? `sent to ${push.sent} device(s)` : p.pushSubscriptions.length ? "failed" : "no device subscribed", email };
 }
 
 // ---------- AI ----------
@@ -386,6 +375,17 @@ export async function sendNudgeToFriend(otherUserId: string): Promise<string> {
   const first = (me?.name ?? "A friend").split(" ")[0];
   const body = `${first} is studying and sent you a reminder. Log your first block now.`;
   await sendPush(them.pushSubscriptions, { title: `Reminder from ${first}`, body, tag: key });
-  if (them.notifyWhatsapp && them.callmebotPhone && them.callmebotKey) await sendWhatsApp(them.callmebotPhone, them.callmebotKey, body);
   return "Nudge sent";
+}
+
+// ---------- Weekly goal (lock-once) ----------
+export async function lockWeeklyGoal(input: { targets: Targets; mocks: number }): Promise<{ ok: boolean; message: string }> {
+  const userId = await uid();
+  const targets = targetsSchema.parse(input.targets);
+  const mocks = z.coerce.number().int().min(0).max(7).parse(input.mocks);
+  if (!SECTIONS.some((k) => targets[k] > 0)) return { ok: false, message: "Set at least one target" };
+  const weekStart = weekStartOf(istNow().date);
+  const rows = await db.insert(weeklyGoals).values({ userId, weekStart, targets, mocks }).onConflictDoNothing().returning({ id: weeklyGoals.id });
+  refresh();
+  return rows.length ? { ok: true, message: "Locked until Sunday" } : { ok: false, message: "This week's goal is already locked" };
 }

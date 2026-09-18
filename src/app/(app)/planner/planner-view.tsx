@@ -5,13 +5,15 @@ import { X, Wand2, Trash2 } from "lucide-react";
 import type { Targets } from "@/db/schema";
 import { addDays, diffDays, EXAM_DATE, fmtDate, SECTIONS, SECTION_META, weekday } from "@/lib/cat";
 import { phaseOf } from "@/lib/plan-generator";
+import { weekStatus, type WeekGoal } from "@/lib/week";
+import { Lock } from "lucide-react";
 import { plannedMinutes, minutesToH } from "@/lib/progress";
 import { applyTemplate, deleteCustomTemplate, saveCustomTemplate, updateDay } from "@/app/actions";
 
 type Day = { date: string; type: "practice" | "mock" | "rest"; targets: Targets; mockName: string | null; note: string | null; tag: string | null; mockDone: boolean; analysisDone: boolean };
 type Tpl = { id: string; name: string; description: string; practice: Targets; mock: Targets; mocksPerWeek: number; finalStretchMocksPerWeek: number; custom: boolean };
 
-export function PlannerView({ today, plans, templates, currentTemplate }: { today: string; plans: Day[]; templates: Tpl[]; currentTemplate: string | null }) {
+export function PlannerView({ today, plans, templates, currentTemplate, weekGoal }: { today: string; plans: Day[]; templates: Tpl[]; currentTemplate: string | null; weekGoal: WeekGoal }) {
   const [sel, setSel] = useState<string | null>(null);
   const [showTpl, setShowTpl] = useState(false);
   const byDate = useMemo(() => new Map(plans.map((p) => [p.date, p])), [plans]);
@@ -33,7 +35,7 @@ export function PlannerView({ today, plans, templates, currentTemplate }: { toda
         <div>
           <div className="label">Planner</div>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Every day to 29 Nov</h1>
-          <p className="mt-1 text-muted text-sm">Tap any day to switch it between practice, mock and rest, or to change its targets.</p>
+          <p className="mt-1 text-muted text-sm">Tap an upcoming day to switch practice / mock / rest or change its targets. Past days are locked.</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="chip num">{mocksLeft} mocks left</span>
@@ -43,6 +45,7 @@ export function PlannerView({ today, plans, templates, currentTemplate }: { toda
       </div>
 
       <PhaseStrip today={today} plans={plans} />
+      <WeekGoalBanner today={today} plans={plans} goal={weekGoal} />
 
       <div className="mt-3 card p-2 md:p-3">
         <div className="grid grid-cols-7 gap-1 md:gap-1.5 mb-1.5">
@@ -55,11 +58,11 @@ export function PlannerView({ today, plans, templates, currentTemplate }: { toda
             const isExam = d === EXAM_DATE;
             const monthStart = d.endsWith("-01");
             return (
-              <button key={d} disabled={!p || isExam} onClick={() => setSel(d)}
+              <button key={d} disabled={!p || isExam || past} onClick={() => setSel(d)} title={past ? "Past days are locked" : undefined}
                 className={clsx(
                   "relative text-left rounded-lg border min-h-[62px] md:min-h-[92px] p-1.5 md:p-2 transition-all",
                   !p && "border-transparent opacity-30",
-                  p && !isExam && "hover:border-line-2 hover:-translate-y-px",
+                  p && !isExam && !past && "hover:border-line-2 hover:-translate-y-px",
                   p?.type === "mock" ? "bg-accent-soft border-accent/25" : p?.type === "rest" && !isExam ? "bg-panel-2 border-line border-dashed" : "bg-panel border-line",
                   isExam && "!bg-ink !text-bg !border-ink !opacity-100",
                   past && p && "opacity-55",
@@ -148,6 +151,31 @@ function PhaseStrip({ today, plans }: { today: string; plans: Day[] }) {
     </div>
   );
 }
+function WeekGoalBanner({ today, plans, goal }: { today: string; plans: Day[]; goal: WeekGoal }) {
+  if (!goal) {
+    return (
+      <div className="mt-3 rounded-lg border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-[13px] flex items-center gap-2">
+        <Lock size={13} className="text-warn" /> No weekly goal locked yet. Lock it from the Today page; daily targets can move, the weekly goal can&apos;t.
+      </div>
+    );
+  }
+  const w = weekStatus({ today, plans, doneByDate: {}, goal });
+  const short = w.planBelowGoal;
+  return (
+    <div className={clsx("mt-3 rounded-lg border px-3.5 py-2.5 text-[13px] flex flex-wrap items-center gap-x-3 gap-y-1", short.length ? "border-warn/30 bg-warn-soft" : "border-line bg-panel")}>
+      <span className="inline-flex items-center gap-1.5 font-medium"><Lock size={13} /> Locked this week</span>
+      <span className="num text-muted">
+        {SECTIONS.map((k) => `${SECTION_META[k].short} ${goal.targets[k]}`).join(" · ")}{goal.mocks ? ` · ${goal.mocks} mocks` : ""}
+      </span>
+      {short.length > 0 && (
+        <span className="text-warn">
+          This week&apos;s days now total less than the goal in {short.map((k) => `${SECTION_META[k].short} (${w.planned[k]}/${goal.targets[k]})`).join(", ")}.
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/30 backdrop-blur-[2px]" onClick={onClose}>

@@ -51,9 +51,10 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
         </div>
       ) : (
         <>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
             <Tile k="Today" v={s.todayPct == null ? "Rest" : `${Math.round(s.todayPct * 100)}%`} sub={s.todayPct == null ? "" : minutesToH(s.todayMinutes)} />
             <Tile k="Streak" v={`${s.streak}d`} icon={<Flame size={13} className={s.streak ? "text-warn" : "text-muted"} />} />
+            <Tile k="Mocks taken" v={String(s.mocksTaken)} sub={`${s.mocksPlannedLeft} planned before CAT`} />
             <Tile k="14-day consistency" v={`${Math.round(s.consistency * 100)}%`} />
             <Tile k="Projected %ile" v={s.projected != null ? s.projected.toFixed(1) : "—"} sub={s.projected == null ? (s.mocks ? "needs 2 mocks" : "hidden") : `target ${s.target}`} />
           </div>

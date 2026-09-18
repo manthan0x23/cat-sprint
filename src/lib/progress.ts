@@ -1,5 +1,5 @@
 import type { Targets } from "@/db/schema";
-import { ANALYSIS_MINUTES, MOCK_MINUTES, SECTIONS, addDays, diffDays, EXAM_DATE } from "./cat";
+import { ANALYSIS_MINUTES, MOCK_MINUTES, SECTIONS, addDays, diffDays, EXAM_DATE, unitMinutes } from "./cat";
 
 // Everything here is pure so it can be unit-tested and reused by the dashboard + cron.
 
@@ -13,19 +13,18 @@ export type PlanDay = {
 
 export type MockPoint = { date: string; percentile: number };
 
-export function effort(t: Targets, unitMinutes: Record<keyof Targets, number>) {
-  return SECTIONS.reduce((s, k) => s + (t[k] ?? 0) * unitMinutes[k], 0);
+/** Realistic minutes for a set of counts on a given date (see time model in cat.ts). */
+export function effort(t: Targets, date: string) {
+  return SECTIONS.reduce((s, k) => s + (t[k] ?? 0) * unitMinutes(k, date), 0);
 }
-
-export const UNIT_MINUTES = { qa: 2, rc: 2.5, va: 1.5, dilr: 12 } as const;
 
 export function plannedMinutes(p: PlanDay) {
   if (p.type === "rest") return 0;
-  return effort(p.targets, UNIT_MINUTES) + (p.type === "mock" ? MOCK_MINUTES + ANALYSIS_MINUTES : 0);
+  return effort(p.targets, p.date) + (p.type === "mock" ? MOCK_MINUTES + ANALYSIS_MINUTES : 0);
 }
 
-export function doneMinutes(p: PlanDay | undefined, done: Targets) {
-  let m = effort(done, UNIT_MINUTES);
+export function doneMinutes(date: string, p: PlanDay | undefined, done: Targets) {
+  let m = effort(done, date);
   if (p?.type === "mock") {
     if (p.mockDone) m += MOCK_MINUTES;
     if (p.analysisDone) m += ANALYSIS_MINUTES;
@@ -74,13 +73,13 @@ export function computeStats(input: {
   for (const p of plans) {
     if (p.date > input.today) break;
     const planned = plannedMinutes(p);
-    const done = doneMinutes(p, input.doneByDate[p.date] ?? zero);
+    const done = doneMinutes(p.date, p, input.doneByDate[p.date] ?? zero);
     history.push({ date: p.date, planned, done, ratio: planned ? done / planned : 1, type: p.type });
   }
   const todayPlan = byDate.get(input.today);
   const todayRow: DayRow =
     history.find((h) => h.date === input.today) ??
-    { date: input.today, planned: 0, done: doneMinutes(undefined, input.doneByDate[input.today] ?? zero), ratio: 1, type: "rest" };
+    { date: input.today, planned: 0, done: doneMinutes(input.today, undefined, input.doneByDate[input.today] ?? zero), ratio: 1, type: "rest" };
 
   const past = history.filter((h) => h.date < input.today);
   const debtMinutes = Math.max(0, past.reduce((s, h) => s + h.planned - h.done, 0));

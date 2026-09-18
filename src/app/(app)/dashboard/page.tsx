@@ -9,6 +9,8 @@ import { TodayCard } from "@/components/dash/today-card";
 import { PaceChart } from "@/components/dash/pace-chart";
 import { Heatmap } from "@/components/dash/heatmap";
 import { CoachCard, CoachSkeleton } from "@/components/dash/coach-card";
+import { WeeklyGoalCard } from "@/components/dash/weekly-goal";
+import { Welcome } from "@/components/dash/welcome-server";
 
 export default async function Dashboard() {
   const { user } = await requireProfile();
@@ -17,6 +19,7 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-4">
+      <Welcome s={s} />
       <Hero s={s} left={left} />
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -26,7 +29,10 @@ export default async function Dashboard() {
         <div className="rise" style={{ animationDelay: "80ms" }}><GoalCard s={s} /></div>
       </div>
 
-      <div className="rise" style={{ animationDelay: "120ms" }}><CostOfToday s={s} /></div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2 rise" style={{ animationDelay: "120ms" }}><CostOfToday s={s} /></div>
+        <div className="rise" style={{ animationDelay: "140ms" }}><WeeklyGoalCard week={s.week} /></div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2 rise" style={{ animationDelay: "160ms" }}>
@@ -117,6 +123,9 @@ function GoalCard({ s }: { s: UserState }) {
         <span className="label inline-flex items-center gap-1.5"><Target size={12} /> Goal</span>
         {s.profile.dreamColleges.length > 0 && <span className="text-[12px] text-muted truncate max-w-[60%]">{s.profile.dreamColleges.join(" · ")}</span>}
       </div>
+      <div className="mt-2 text-[12.5px] text-muted num">
+        Mocks: <span className="text-ink">{s.mocksTaken}</span> taken · {s.mocksPlannedLeft} planned before CAT
+      </div>
       <div className="mt-4 flex items-end gap-6">
         <div>
           <div className="text-[12px] text-muted">Target</div>
@@ -190,7 +199,7 @@ function CostOfToday({ s }: { s: UserState }) {
   ].filter(Boolean) as { k: string; done: string; skip: string; delta: string }[];
 
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-hidden h-full">
       <div className="px-5 pt-5 flex items-baseline justify-between flex-wrap gap-2">
         <div>
           <div className="label">The cost of today</div>

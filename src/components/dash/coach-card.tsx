@@ -1,3 +1,4 @@
+import { cache } from "react";
 import clsx from "clsx";
 import { Sparkles } from "lucide-react";
 import { cachedAI } from "@/lib/ai";
@@ -6,10 +7,16 @@ import { loadCoachContext } from "@/lib/coach-context";
 import type { UserState } from "@/lib/data";
 import { RegenButton } from "./regen-button";
 
-export async function CoachCard({ state }: { state: UserState }) {
+/** Deduped per request, so the coach card and the welcome popup share one AI call. */
+export const getCoach = cache(async (state: UserState) => {
   const ctx = await loadCoachContext(state);
   const { sit, kind } = dashboardSlot(state, ctx);
   const { text, ai } = await cachedAI(state.profile.userId, kind, prompt(state, sit, ctx), fallback(state, sit, ctx));
+  return { sit, text, ai, ctx };
+});
+
+export async function CoachCard({ state }: { state: UserState }) {
+  const { sit, text, ai } = await getCoach(state);
   const comeback = sit === "morning-comeback";
   return (
     <div className={clsx("card p-5 relative overflow-hidden", comeback && "!border-bad/35")}>

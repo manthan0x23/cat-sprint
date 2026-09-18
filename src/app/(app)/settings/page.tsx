@@ -91,24 +91,6 @@ export default async function SettingsPage() {
           <input type="checkbox" name="notifyPush" defaultChecked={p.notifyPush} className="accent-[var(--accent)]" /> Send push notifications
         </label>
 
-        <div className="pt-4 border-t border-line">
-          <div className="font-medium text-[14.5px]">WhatsApp (via CallMeBot, free)</div>
-          <ol className="mt-2 text-[13px] text-muted list-decimal ml-4 space-y-1">
-            <li>Save <span className="num text-ink">+34 623 91 22 04</span> in your contacts.</li>
-            <li>WhatsApp it: <span className="text-ink">I allow callmebot to send me messages</span></li>
-            <li>Paste the API key it replies with below. (Personal-use service. It can occasionally be slow.)</li>
-          </ol>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label><span className="text-[13px] text-muted">Your WhatsApp number</span>
-              <input name="callmebotPhone" defaultValue={p.callmebotPhone ?? ""} placeholder="+919876543210" className="input mt-1 num" /></label>
-            <label><span className="text-[13px] text-muted">CallMeBot API key</span>
-              <input name="callmebotKey" defaultValue={p.callmebotKey ?? ""} placeholder="1234567" className="input mt-1 num" /></label>
-          </div>
-          <label className="mt-3 flex items-center gap-2 text-[13.5px]">
-            <input type="checkbox" name="notifyWhatsapp" defaultChecked={p.notifyWhatsapp} className="accent-[var(--accent)]" /> Send WhatsApp messages
-          </label>
-        </div>
-
         <div className="pt-4 border-t border-line text-[13px] text-muted">
           The coach checks in at 12 PM, 3 PM, 6 PM, 8 PM and 10 PM (within your study window). It warns you when you&apos;re behind and escalates if you ignore it, pushes you to close when you&apos;re almost done, applauds the moment you finish, and calls out a bad yesterday the next morning. It stays quiet when you&apos;re on pace.
         </div>

@@ -52,7 +52,7 @@ export function TestButton() {
   return (
     <div className="flex items-center gap-3">
       <button type="button" className="btn btn-ghost" disabled={pending}
-        onClick={() => start(async () => { const r = await sendTestNotification(); setRes(`Email: ${r.email} · Push: ${r.push} · WhatsApp: ${r.whatsapp}`); })}>
+        onClick={() => start(async () => { const r = await sendTestNotification(); setRes(`Push: ${r.push} · Email: ${r.email}`); })}>
         <Send size={13} /> {pending ? "Sending…" : "Send test"}
       </button>
       {res && <span className="text-[12px] text-muted">{res}</span>}

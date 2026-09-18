@@ -1,6 +1,6 @@
 import Link from "next/link";
 import clsx from "clsx";
-import { Flame, Trophy } from "lucide-react";
+import { Flame, LineChart, Trophy } from "lucide-react";
 import { requireProfile } from "@/lib/data";
 import { basicProfiles, friendIds, pendingRequests, sharedStats } from "@/lib/social";
 import { minutesToH } from "@/lib/progress";
@@ -44,7 +44,7 @@ export default async function FriendsPage() {
         <div className="card lg:col-span-2 overflow-hidden">
           <div className="px-5 pt-5 flex items-center justify-between">
             <span className="label inline-flex items-center gap-1.5"><Trophy size={12} /> Today&apos;s board</span>
-            <span className="text-[12px] text-muted">ranked by hours logged today</span>
+            <span className="text-[12px] text-muted">ranked by hours logged today · mocks = total taken</span>
           </div>
           <ul className="mt-3">
             {board.map((r, i) => {
@@ -69,7 +69,11 @@ export default async function FriendsPage() {
                       </span>
                     </div>
                   </div>
-                  <span className="chip num hidden sm:inline-flex"><Flame size={12} className={r.s!.streak ? "text-warn" : "text-muted"} />{r.s!.streak}</span>
+                  <span className="chip num hidden sm:inline-flex" title="Mocks taken">
+                    <LineChart size={12} className="text-accent" />{r.s!.mocksTaken} mock{r.s!.mocksTaken === 1 ? "" : "s"}
+                    {r.s!.lastMockPct != null && <span className="text-muted">· last {r.s!.lastMockPct}</span>}
+                  </span>
+                  <span className="chip num hidden sm:inline-flex" title="Streak"><Flame size={12} className={r.s!.streak ? "text-warn" : "text-muted"} />{r.s!.streak}</span>
                   {!r.me && <NudgeButton userId={r.id} />}
                 </li>
               );

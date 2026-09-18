@@ -6,7 +6,7 @@ import { cachedAI } from "@/lib/ai";
 import { checkpointsFor, classifyCheckpoint, classifyMorning, fallback, prompt, TITLES, type CoachContext, type Situation } from "@/lib/coach";
 import { loadCoachContext } from "@/lib/coach-context";
 import { loadUserState, type UserState } from "@/lib/data";
-import { sendEmail, sendPush, sendWhatsApp } from "@/lib/notify";
+import { sendEmail, sendPush } from "@/lib/notify";
 import { users } from "@/db/schema";
 
 // Called every 30 min by cron-job.org (Vercel Hobby cron only allows once a day).
@@ -51,7 +51,7 @@ async function claim(userId: string, s: UserState, kind: string, sit: Situation)
 
 async function deliver(s: UserState, title: string, body: string, tag: string) {
   const p = s.profile;
-  const res = { push: 0, whatsapp: false, email: false };
+  const res = { push: 0, email: false };
   if (p.notifyPush && p.pushSubscriptions.length) {
     const r = await sendPush(p.pushSubscriptions, { title, body, tag, url: "/dashboard" });
     res.push = r.sent;
@@ -59,9 +59,6 @@ async function deliver(s: UserState, title: string, body: string, tag: string) {
       await db.update(profiles).set({ pushSubscriptions: p.pushSubscriptions.filter((x) => !r.dead.includes(x.endpoint)) })
         .where(eq(profiles.userId, p.userId));
     }
-  }
-  if (p.notifyWhatsapp && p.callmebotPhone && p.callmebotKey) {
-    res.whatsapp = await sendWhatsApp(p.callmebotPhone, p.callmebotKey, `*${title}*\n${body}`);
   }
   if (p.notifyEmail) {
     const u = await db.query.users.findFirst({ where: eq(users.id, p.userId) });
@@ -81,7 +78,7 @@ async function handleUser(userId: string, force?: Situation) {
   if (!s || !s.profile.onboarded) return [];
   const ctx = await loadCoachContext(s);
   const slots: Slot[] = force ? [{ kind: `test-${force}-${Date.now()}`, sit: force }] : slotsFor(s, ctx);
-  const log: { kind: string; sit: Situation; body: string; push: number; whatsapp: boolean; email: boolean }[] = [];
+  const log: { kind: string; sit: Situation; body: string; push: number; email: boolean }[] = [];
 
   for (const { kind, sit } of slots) {
     const id = force ? null : await claim(userId, s, kind, sit);

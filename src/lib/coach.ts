@@ -1,5 +1,5 @@
 import type { UserState } from "./data";
-import { addDays, daysToExam, fmtHour, SECTIONS, SECTION_META } from "./cat";
+import { addDays, daysToExam, fmtHour, SECTIONS, SECTION_META, unitLabel } from "./cat";
 import { minutesToH } from "./progress";
 
 // The coach engine.
@@ -33,7 +33,7 @@ export function remaining(s: UserState) {
   if (!t) return { text: "", minutes: 0, items: [] as string[] };
   const items = SECTIONS.map((k) => ({ k, n: Math.max(0, t[k] - s.todayDone[k]) }))
     .filter((x) => x.n > 0)
-    .map((x) => `${x.n} ${SECTION_META[x.k].short}${x.k === "dilr" ? (x.n > 1 ? " sets" : " set") : ""}`);
+    .map((x) => unitLabel(x.k, x.n));
   if (s.todayPlan?.type === "mock") {
     if (!s.todayPlan.mockDone) items.unshift("the mock");
     if (!s.todayPlan.analysisDone) items.splice(s.todayPlan.mockDone ? 0 : 1, 0, "the analysis");
@@ -108,7 +108,7 @@ export function facts(s: UserState, ctx?: CoachContext) {
     s.profile.dreamColleges.length ? `Dream colleges: ${s.profile.dreamColleges.join(", ")}.` : "",
     s.profile.why ? `Their own "why", in their words: "${s.profile.why}"` : "",
     s.profile.weakSections.length ? `Weak sections: ${s.profile.weakSections.map((w) => SECTION_META[w as keyof typeof SECTION_META]?.short ?? w).join(", ")}.` : "",
-    t ? `Today: ${t.type} day${t.mockName ? ` (${t.mockName})` : ""}. Targets: ${SECTIONS.map((k) => `${SECTION_META[k].short} ${t.targets[k]}`).join(", ")}.` : "No plan today.",
+    t ? `Today: ${t.type} day${t.mockName ? ` (${t.mockName})` : ""}. Targets: ${SECTIONS.map((k) => unitLabel(k, t.targets[k])).join(", ")}.` : "No plan today.",
     `Done today: ${SECTIONS.map((k) => `${SECTION_META[k].short} ${s.todayDone[k]}`).join(", ")} = ${Math.round((s.stats.today.ratio || 0) * 100)}% of today's work.`,
     rem.text ? `Still left today: ${rem.text} (~${minutesToH(rem.minutes)}).` : "Nothing left today.",
     `Time now: ${fmtHour(s.hour)} IST. Study window ends ${fmtHour(s.profile.studyEndHour)} (${Math.max(0, s.profile.studyEndHour - s.hour).toFixed(1)}h left).`,
@@ -119,6 +119,10 @@ export function facts(s: UserState, ctx?: CoachContext) {
       ? `Projected CAT %ile at current consistency: ${s.projection.projected.toFixed(1)}. Finishing today → ${s.impact.percentileIfDone?.toFixed(1)}; skipping → ${s.impact.percentileIfSkip?.toFixed(1)}.`
       : `No percentile projection yet (fewer than 2 mocks).`,
     s.mocks.length ? `Last mock: ${s.mocks.at(-1)!.name}, ${s.mocks.at(-1)!.percentile} %ile.` : "",
+    `Mocks taken so far: ${s.mocksTaken}; ${s.mocksPlannedLeft} planned before CAT.`,
+    s.week.goal
+      ? `Locked weekly goal (${s.week.daysLeft} days left in the week): ${Math.round((s.week.pct ?? 0) * 100)}% done. Remaining per day to hit it: ${SECTIONS.filter((k) => (s.week.perDayNeeded?.[k] ?? 0) > 0).map((k) => unitLabel(k, s.week.perDayNeeded![k])).join(", ") || "nothing, goal met"}.`
+      : "No weekly goal locked yet this week.",
     ctx && ctx.friendsCount ? `Friends who already finished today: ${ctx.friendsDoneToday.length ? ctx.friendsDoneToday.join(", ") : "none yet"} (of ${ctx.friendsCount}).` : "",
   ];
   return lines.filter(Boolean).join("\n");

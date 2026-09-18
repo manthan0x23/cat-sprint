@@ -63,10 +63,7 @@ export const profiles = pgTable("profile", {
   studyEndHour: integer("studyEndHour").notNull().default(23),
   templateId: text("templateId"),
   notifyPush: boolean("notifyPush").notNull().default(true),
-  notifyWhatsapp: boolean("notifyWhatsapp").notNull().default(false),
   notifyEmail: boolean("notifyEmail").notNull().default(true),
-  callmebotPhone: text("callmebotPhone"),
-  callmebotKey: text("callmebotKey"),
   pushSubscriptions: jsonb("pushSubscriptions").$type<PushSub[]>().notNull().default([]),
   onboarded: boolean("onboarded").notNull().default(false),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
@@ -177,4 +174,18 @@ export const friendships = pgTable(
     uniqueIndex("friendship_pair").on(t.requesterId, t.addresseeId),
     index("friendship_addressee").on(t.addresseeId),
   ],
+);
+
+// Set once per Mon–Sun week, then locked (no update path exists on purpose).
+export const weeklyGoals = pgTable(
+  "weekly_goal",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    weekStart: date("weekStart", { mode: "string" }).notNull(), // Monday (IST)
+    targets: jsonb("targets").$type<Targets>().notNull(),
+    mocks: integer("mocks").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("weekly_goal_user_week").on(t.userId, t.weekStart)],
 );

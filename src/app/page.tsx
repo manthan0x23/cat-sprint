@@ -44,7 +44,7 @@ export default async function Landing() {
           { icon: CalendarRange, t: "Mock calendar", d: "Auto-planned to CAT day: 2/week now, 3/week in the final stretch, tapering at the end." },
           { icon: TrendingUp, t: "Cause → effect", d: "See how skipping today changes your backlog, your consistency and your projected %ile." },
           { icon: Brain, t: "AI coach", d: "A Qwen-powered brief each morning and nudges that use your own goal and numbers." },
-          { icon: BellRing, t: "Push + WhatsApp", d: "3 PM and you're at 10%? You'll hear about it, on your phone." },
+          { icon: BellRing, t: "Phone reminders", d: "3 PM and you're at 10%? You'll get a push notification on your phone." },
         ].map(({ icon: Icon, t, d }, i) => (
           <div key={t} className="card p-5 rise" style={{ animationDelay: `${120 + i * 60}ms` }}>
             <Icon size={18} className="text-accent" />

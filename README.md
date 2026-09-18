@@ -1,6 +1,6 @@
 # CAT Sprint
 
-CAT 2026 planner (exam: **Sun 29 Nov 2026**). Next.js 16 · Drizzle · Neon · Auth.js (Google) · Web Push + WhatsApp (CallMeBot) · Qwen via OpenRouter.
+CAT 2026 planner (exam: **Sun 29 Nov 2026**). Next.js 16 · Drizzle · Neon · Auth.js (Google) · Web Push · Qwen via OpenRouter.
 
 ## Local
 ```bash

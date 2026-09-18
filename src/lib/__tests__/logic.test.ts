@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generatePlan } from "../plan-generator";
 import { SYSTEM_TEMPLATES } from "../templates";
 import { computeStats, projectPercentile, skipImpact, plannedMinutes, expectedFraction } from "../progress";
-import { istNow, daysToExam, weekday } from "../cat";
+import { istNow, daysToExam, weekday, unitMinutes } from "../cat";
 
 const manthan = SYSTEM_TEMPLATES[0];
 
@@ -55,19 +55,28 @@ describe("generatePlan", () => {
   });
   it("weakness template doubles weak sections", () => {
     const w = generatePlan({ start: "2026-09-18", template: SYSTEM_TEMPLATES[3], weak: ["dilr"] });
-    expect(w.find((d) => d.tag === "Balanced")!.targets).toEqual({ qa: 28, rc: 6, va: 8, dilr: 8 });
+    expect(w.find((d) => d.tag === "Balanced")!.targets).toEqual({ qa: 25, rc: 3, va: 7, dilr: 6 });
   });
 });
 
 describe("computeStats", () => {
-  const t = { qa: 50, rc: 10, va: 15, dilr: 5 }; // 100 + 25 + 22.5 + 60 = 207.5 min
+  const t = { qa: 50, rc: 10, va: 15, dilr: 5 };
   const plans = [
     { date: "2026-09-16", type: "practice" as const, targets: t },
     { date: "2026-09-17", type: "practice" as const, targets: t },
     { date: "2026-09-18", type: "practice" as const, targets: t },
     { date: "2026-09-19", type: "practice" as const, targets: t },
   ];
-  it("planned minutes", () => expect(plannedMinutes(plans[0])).toBe(207.5));
+  it("realistic hours: the 50/10/15/5 plan is ~9h in September", () => {
+    const h = plannedMinutes(plans[0]) / 60;
+    expect(h).toBeGreaterThan(8.5);
+    expect(h).toBeLessThan(9.5);
+  });
+  it("speed improves toward CAT (practice overhead 1.6× → 1.25×)", () => {
+    expect(unitMinutes("dilr", "2026-08-31")).toBeCloseTo(16 * 1.6); // ≥90 days out
+    expect(unitMinutes("dilr", "2026-11-29")).toBeCloseTo(16 * 1.25);
+    expect(unitMinutes("qa", "2026-11-01")).toBeLessThan(unitMinutes("qa", "2026-09-18"));
+  });
   it("debt from a skipped day spreads over remaining days", () => {
     const s = computeStats({
       plans,
@@ -77,10 +86,11 @@ describe("computeStats", () => {
       window: { start: 7, end: 23 },
       exam: "2026-09-20",
     });
-    expect(s.debtMinutes).toBe(207.5);
+    const day17 = plannedMinutes(plans[1]);
+    expect(s.debtMinutes).toBeCloseTo(day17);
     expect(s.remainingDays).toBe(2);
-    expect(s.extraPerDay).toBeCloseTo(103.75);
-    expect(s.consistency).toBeCloseTo(0.5);
+    expect(s.extraPerDay).toBeCloseTo(day17 / 2);
+    expect(s.consistency).toBeCloseTo(0.5, 1);
     expect(s.todayStatus).toBe("way-behind"); // 3pm, nothing logged
     expect(s.streak).toBe(0);
   });
@@ -151,5 +161,26 @@ describe("coach classification", async () => {
     expect(classifyCheckpoint(s as never, { ...ctx, sentToday: sent }, 20)).toBe("ignored");
   });
   it("bad yesterday → comeback morning", () => expect(classifyMorning(mk(0, 8, 0.2))).toBe("morning-comeback"));
-  it("remaining lists what's left", () => expect(remaining(mk(0.8, 15)).text).toBe("10 QA, 2 RC, 3 VA, 1 DILR set"));
+  it("remaining lists what's left", () => expect(remaining(mk(0.8, 15)).text).toBe("10 QA Qs, 2 RC passages, 3 VA Qs, 1 DILR set"));
+});
+
+describe("weekly goal", async () => {
+  const { weekStatus } = await import("../week");
+  const { weekStartOf } = await import("../cat");
+  const t = { qa: 50, rc: 10, va: 15, dilr: 5 };
+  const plans = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"]
+    .map((date) => ({ date, type: "practice", targets: t, mockDone: false }));
+  it("week is Monday–Sunday IST", () => expect(weekStartOf("2026-09-18")).toBe("2026-09-14"));
+  it("goal stays fixed when daily plan is cut; remaining work spreads over days left", () => {
+    const cut = plans.map((p) => (p.date >= "2026-09-18" ? { ...p, targets: { qa: 10, rc: 2, va: 3, dilr: 1 } } : p));
+    const w = weekStatus({
+      today: "2026-09-18", plans: cut,
+      doneByDate: { "2026-09-14": t, "2026-09-15": t },
+      goal: { targets: { qa: 300, rc: 60, va: 90, dilr: 30 }, mocks: 0 },
+    });
+    expect(w.daysLeft).toBe(3);
+    expect(w.done.qa).toBe(100);
+    expect(w.perDayNeeded!.qa).toBe(67); // (300-100)/3 rounded up
+    expect(w.planBelowGoal).toEqual(["qa", "rc", "va", "dilr"]);
+  });
 });
