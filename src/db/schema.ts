@@ -64,6 +64,7 @@ export const profiles = pgTable("profile", {
   templateId: text("templateId"),
   notifyPush: boolean("notifyPush").notNull().default(true),
   notifyWhatsapp: boolean("notifyWhatsapp").notNull().default(false),
+  notifyEmail: boolean("notifyEmail").notNull().default(true),
   callmebotPhone: text("callmebotPhone"),
   callmebotKey: text("callmebotKey"),
   pushSubscriptions: jsonb("pushSubscriptions").$type<PushSub[]>().notNull().default([]),

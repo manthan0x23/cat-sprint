@@ -10,7 +10,7 @@ import { dayPlans, friendships, mockResults, notificationsSent, profiles, progre
 import { EXAM_DATE, istNow, SECTIONS, type Section } from "@/lib/cat";
 import { generatePlan } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
-import { sendPush, sendWhatsApp } from "@/lib/notify";
+import { sendEmail, sendPush, sendWhatsApp } from "@/lib/notify";
 import { cachedAI } from "@/lib/ai";
 import { loadUserState } from "@/lib/data";
 import { dashboardSlot, fallback, prompt } from "@/lib/coach";
@@ -253,6 +253,7 @@ export async function saveNotificationSettings(formData: FormData) {
   const data = z.object({
     notifyPush: z.boolean(),
     notifyWhatsapp: z.boolean(),
+    notifyEmail: z.boolean(),
     callmebotPhone: z.string().max(20).regex(/^\+?\d*$/, "Phone must be digits with country code, e.g. +919876543210"),
     callmebotKey: z.string().max(40),
     coachIntensity: z.enum(["gentle", "firm", "strict"]),
@@ -260,6 +261,7 @@ export async function saveNotificationSettings(formData: FormData) {
     coachIntensity: formData.get("coachIntensity") ?? "firm",
     notifyPush: formData.get("notifyPush") === "on",
     notifyWhatsapp: formData.get("notifyWhatsapp") === "on",
+    notifyEmail: formData.get("notifyEmail") === "on",
     callmebotPhone: String(formData.get("callmebotPhone") ?? "").replace(/\s/g, ""),
     callmebotKey: String(formData.get("callmebotKey") ?? "").trim(),
   });
@@ -271,10 +273,10 @@ export async function saveNotificationSettings(formData: FormData) {
   refresh();
 }
 
-export async function sendTestNotification(): Promise<{ push: string; whatsapp: string }> {
+export async function sendTestNotification(): Promise<{ push: string; whatsapp: string; email: string }> {
   const userId = await uid();
   const p = await db.query.profiles.findFirst({ where: eq(profiles.userId, userId) });
-  if (!p) return { push: "no profile", whatsapp: "no profile" };
+  if (!p) return { push: "no profile", whatsapp: "no profile", email: "no profile" };
   const msg = "Test from CAT Sprint. Notifications are working. Now go solve a DILR set.";
   const push = await sendPush(p.pushSubscriptions, { title: "CAT Sprint", body: msg, tag: "test" });
   if (push.dead.length) {
@@ -282,7 +284,9 @@ export async function sendTestNotification(): Promise<{ push: string; whatsapp: 
   }
   let whatsapp = "not configured";
   if (p.callmebotPhone && p.callmebotKey) whatsapp = (await sendWhatsApp(p.callmebotPhone, p.callmebotKey, msg)) ? "sent" : "failed (check phone/key)";
-  return { push: push.sent ? `sent to ${push.sent} device(s)` : p.pushSubscriptions.length ? "failed" : "no device subscribed", whatsapp };
+  const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  const email = !process.env.SMTP_HOST ? "SMTP not configured" : u?.email ? ((await sendEmail(u.email, "Test notification", msg)) ? `sent to ${u.email}` : "failed") : "no email";
+  return { push: push.sent ? `sent to ${push.sent} device(s)` : p.pushSubscriptions.length ? "failed" : "no device subscribed", whatsapp, email };
 }
 
 // ---------- AI ----------

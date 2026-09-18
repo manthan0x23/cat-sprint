@@ -75,7 +75,12 @@ export default async function SettingsPage() {
             <option value="firm">Direct</option>
             <option value="strict">Strict</option>
           </select></label>
-        <div className="flex items-start justify-between gap-4">
+        <label className="flex items-start gap-2 text-[13.5px]">
+          <input type="checkbox" name="notifyEmail" defaultChecked={p.notifyEmail} className="mt-0.5 accent-[var(--accent)]" />
+          <span><span className="font-medium text-[14.5px]">Email</span><span className="block text-muted text-[13px]">Coach check-ins sent to your Google account email.</span></span>
+        </label>
+
+        <div className="flex items-start justify-between gap-4 pt-4 border-t border-line">
           <div>
             <div className="font-medium text-[14.5px]">Push notifications</div>
             <p className="text-[13px] text-muted mt-0.5">On phones, first install the app (Share → Add to Home Screen on iPhone; ⋮ → Install app on Android), then enable here.</p>

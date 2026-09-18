@@ -1,5 +1,6 @@
 import "server-only";
 import webpush from "web-push";
+import nodemailer from "nodemailer";
 import type { PushSub } from "@/db/schema";
 
 let configured = false;
@@ -47,6 +48,47 @@ export async function sendWhatsApp(phone: string, apiKey: string, text: string) 
     return ok;
   } catch (e) {
     console.error("[whatsapp] failed", e);
+    return false;
+  }
+}
+
+// ---------- Email (any SMTP: Gmail app password, Brevo, …) ----------
+
+let transport: nodemailer.Transporter | null = null;
+function mailer() {
+  if (transport) return transport;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+  const port = Number(SMTP_PORT || 465);
+  transport = nodemailer.createTransport({ host: SMTP_HOST, port, secure: port === 465, auth: { user: SMTP_USER, pass: SMTP_PASS } });
+  return transport;
+}
+
+function esc(s: string) {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
+export async function sendEmail(to: string, subject: string, body: string) {
+  const t = mailer();
+  if (!t) return false;
+  const url = `${process.env.APP_URL ?? ""}/dashboard`;
+  try {
+    await t.sendMail({
+      from: process.env.SMTP_FROM || `CAT Sprint <${process.env.SMTP_USER}>`,
+      to,
+      subject: `CAT Sprint · ${subject}`,
+      text: `${body}\n\nOpen your dashboard: ${url}`,
+      html: `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#18181b">
+  <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#71717a">CAT Sprint</div>
+  <h2 style="margin:8px 0 12px;font-size:20px">${esc(subject)}</h2>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 20px">${esc(body)}</p>
+  <a href="${url}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:10px 16px;border-radius:9px;font-size:14px">Open dashboard</a>
+  <p style="font-size:12px;color:#a1a1aa;margin-top:24px">Turn email off anytime in Settings.</p>
+</div>`,
+    });
+    return true;
+  } catch (e) {
+    console.error("[email] failed", e);
     return false;
   }
 }
