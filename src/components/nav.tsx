@@ -46,10 +46,26 @@ export function NavSheet({ user, username, requests, logout }: {
 
   return (
     <>
+      {/* Desktop: the main pages are visible links, so the app's shape is obvious without opening anything. */}
+      <nav aria-label="Main" className="hidden md:flex items-center gap-0.5 mr-1">
+        {items.filter((i) => i.href !== "/settings").map(({ href, label, icon: Icon }) => {
+          const active = current?.href === href;
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined}
+              className={clsx("relative inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium transition-colors",
+                active ? "bg-accent-soft text-ink" : "text-muted hover:text-ink hover:bg-panel-2")}>
+              <Icon size={14} className={active ? "text-accent" : undefined} />
+              {label}
+              {href === "/friends" && requests > 0 && <span className="size-1.5 rounded-full bg-accent" />}
+            </Link>
+          );
+        })}
+      </nav>
+
       <button onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open}
         className="group relative inline-flex items-center gap-2 h-9 pl-3 pr-1 rounded-full border border-line bg-panel hover:border-line-2 transition-colors">
         <Menu size={15} className="text-muted group-hover:text-ink transition-colors" />
-        <span className="text-[13px] font-medium hidden sm:inline">{current?.label ?? "Menu"}</span>
+        <span className="text-[13px] font-medium md:hidden">Menu</span>
         <Avatar image={user.image} name={user.name} size={26} />
         {requests > 0 && <span className="absolute -top-1 -right-1 size-4 rounded-full bg-accent text-white text-[10px] grid place-items-center num ring-2 ring-bg">{requests}</span>}
       </button>
