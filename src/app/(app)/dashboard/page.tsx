@@ -180,9 +180,11 @@ function CostOfToday({ s }: { s: UserState }) {
   const planned = s.stats.today.planned;
   if (!planned) return null;
   const hasP = i.percentileIfDone != null && i.percentileIfSkip != null;
+  // Consistency needs some history; on day 1 it would swing 100% ↔ 0% and mean nothing.
+  const pastDays = s.stats.history.filter((h) => h.date < s.today && h.planned > 0).length;
   const rows = [
     hasP && { k: "Projected CAT %ile", done: i.percentileIfDone!.toFixed(1), skip: i.percentileIfSkip!.toFixed(1), delta: (i.percentileIfSkip! - i.percentileIfDone!).toFixed(2) },
-    { k: "14-day consistency", done: `${Math.round(i.consistencyIfDone * 100)}%`, skip: `${Math.round(i.consistencyIfSkip * 100)}%`, delta: `${Math.round((i.consistencyIfSkip - i.consistencyIfDone) * 100)} pts` },
+    pastDays >= 3 && { k: "14-day consistency", done: `${Math.round(i.consistencyIfDone * 100)}%`, skip: `${Math.round(i.consistencyIfSkip * 100)}%`, delta: `${Math.round((i.consistencyIfSkip - i.consistencyIfDone) * 100)} pts` },
     { k: "Backlog to carry", done: minutesToH(s.stats.debtMinutes), skip: minutesToH(s.stats.debtMinutes + i.debtAddedMinutes), delta: `+${minutesToH(i.debtAddedMinutes)}` },
     { k: "Extra study per day till CAT", done: `${Math.round(s.stats.extraPerDay)} min`, skip: `${Math.round(i.extraPerDayIfSkip)} min`, delta: `+${Math.round(i.extraPerDayIfSkip - s.stats.extraPerDay)} min` },
   ].filter(Boolean) as { k: string; done: string; skip: string; delta: string }[];
