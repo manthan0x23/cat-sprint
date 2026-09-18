@@ -9,6 +9,9 @@ import { istNow } from "./cat";
 // so every call goes through a global daily budget and results are cached per user/day/kind.
 
 const MODEL = process.env.OPENROUTER_MODEL || "qwen/qwen3.8-27b:free";
+// OpenRouter tries these in order if the primary is down or rate-limited (same free quota).
+const FALLBACKS = (process.env.OPENROUTER_FALLBACKS || "google/gemma-4-31b-it:free,deepseek/deepseek-v4-flash-0731:free")
+  .split(",").map((m) => m.trim()).filter(Boolean);
 const BUDGET = Number(process.env.AI_DAILY_BUDGET || 45);
 
 const SYSTEM = `You are "Sprint", a sharp, warm CAT (IIM entrance exam) coach inside a planner app.
@@ -43,7 +46,9 @@ export async function askAI(prompt: string, maxTokens = 220): Promise<string | n
         "X-Title": "CAT Sprint",
       },
       body: JSON.stringify({
-        model: MODEL,
+        models: [MODEL, ...FALLBACKS.filter((m) => m !== MODEL)].slice(0, 3),
+        // Short notification copy: thinking only adds latency and can eat the token budget.
+        reasoning: { enabled: false },
         max_tokens: maxTokens,
         temperature: 0.7,
         messages: [
