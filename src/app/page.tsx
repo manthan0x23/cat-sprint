@@ -1,69 +1,69 @@
-import Image from "next/image";
+import { redirect } from "next/navigation";
+import { ArrowRight, BellRing, Brain, CalendarRange, TrendingUp } from "lucide-react";
+import { auth, devLoginEnabled } from "@/auth";
+import { Logo } from "@/components/logo";
+import { daysToExam, istNow } from "@/lib/cat";
+import { devSignIn, signInWithGoogle } from "./actions";
 
-export default function Home() {
+export default async function Landing() {
+  const session = await auth();
+  if (session?.user) redirect("/dashboard");
+  const left = daysToExam(istNow().date);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="relative min-h-dvh overflow-hidden">
+      <div className="grid-bg absolute inset-0 -z-10 h-[640px]" />
+      <header className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
+        <Logo />
+        <form action={signInWithGoogle}><button className="btn btn-ghost btn-sm">Sign in</button></form>
+      </header>
+
+      <section className="mx-auto max-w-3xl px-4 pt-16 md:pt-24 text-center rise">
+        <span className="chip num"><span className="size-1.5 rounded-full bg-accent pulse" />CAT 2026 · Sun 29 Nov · {left} days left</span>
+        <h1 className="mt-6 text-[44px] md:text-[72px] leading-[1.02] font-semibold tracking-[-0.035em]">
+          Every day you skip<br /><span className="text-muted">shows up on 29 Nov.</span>
+        </h1>
+        <p className="mt-6 text-[17px] text-ink-2 max-w-xl mx-auto leading-relaxed">
+          Plan your mocks, set daily QA · RC · VA · DILR targets, and watch how each day&apos;s work
+          moves your projected percentile. An AI coach checks in when you fall behind.
+        </p>
+        <form action={signInWithGoogle} className="mt-9 flex justify-center">
+          <button className="btn btn-primary h-11 px-5 text-[15px]">
+            <GoogleG /> Continue with Google <ArrowRight size={16} />
+          </button>
+        </form>
+        {devLoginEnabled && (
+          <form action={devSignIn} className="mt-3 flex justify-center">
+            <button className="btn btn-ghost btn-sm">Dev login (local only)</button>
+          </form>
+        )}
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 mt-20 md:mt-28 pb-20 grid gap-3 md:grid-cols-4">
+        {[
+          { icon: CalendarRange, t: "Mock calendar", d: "Auto-planned to CAT day: 2/week now, 3/week in the final stretch, tapering at the end." },
+          { icon: TrendingUp, t: "Cause → effect", d: "See how skipping today changes your backlog, your consistency and your projected %ile." },
+          { icon: Brain, t: "AI coach", d: "A Qwen-powered brief each morning and nudges that use your own goal and numbers." },
+          { icon: BellRing, t: "Push + WhatsApp", d: "3 PM and you're at 10%? You'll hear about it, on your phone." },
+        ].map(({ icon: Icon, t, d }, i) => (
+          <div key={t} className="card p-5 rise" style={{ animationDelay: `${120 + i * 60}ms` }}>
+            <Icon size={18} className="text-accent" />
+            <div className="mt-4 font-medium">{t}</div>
+            <p className="mt-1.5 text-[13.5px] text-muted leading-relaxed">{d}</p>
+          </div>
+        ))}
+      </section>
     </div>
+  );
+}
+
+function GoogleG() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/>
+    </svg>
   );
 }

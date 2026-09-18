@@ -1,36 +1,26 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CAT Sprint
 
-## Getting Started
+CAT 2026 planner (exam: **Sun 29 Nov 2026**). Next.js 16 · Drizzle · Neon · Auth.js (Google) · Web Push + WhatsApp (CallMeBot) · Qwen via OpenRouter.
 
-First, run the development server:
-
+## Local
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # DATABASE_URL=pglite:./.pglite works with zero setup
+npx drizzle-kit push         # create tables
+npm run dev                  # DEV_LOGIN=1 adds a local-only login; POST /api/dev/seed fills demo data
+npm test
 ```
+PGlite is single-process: stop `npm run dev` before running `drizzle-kit push`. If it ever corrupts: `rm -rf .pglite && npx drizzle-kit push`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy (Vercel)
+1. Push to GitHub → import in Vercel.
+2. Env vars (Production): `DATABASE_URL` (Neon pooled URL), `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
+   `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=qwen/qwen3.8-27b:free`, `AI_DAILY_BUDGET=45`,
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`, `APP_URL=https://<domain>`.
+   Do NOT set `DEV_LOGIN`.
+3. Google OAuth client → add `https://<domain>` origin and `https://<domain>/api/auth/callback/google` redirect.
+4. cron-job.org → every 30 min, `GET https://<domain>/api/cron/tick`, header `x-cron-secret: <CRON_SECRET>`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## How the coach works
+Rules pick *when* and *what situation* (`src/lib/coach.ts`); Qwen only words it (cached, budgeted), with rule-based fallbacks.
+Check-ins at 12, 3, 6, 8, 10 PM inside your study window: warn → escalate if ignored, "almost done" push, instant applause on completion, next-morning callout after a bad day.
+Test: `curl -H "x-cron-secret: $CRON_SECRET" "$URL/api/cron/tick?force=way-behind"`.

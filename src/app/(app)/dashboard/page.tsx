@@ -1,0 +1,227 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import clsx from "clsx";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Flame, Target, TrendingUp } from "lucide-react";
+import { requireProfile, loadUserState, type UserState } from "@/lib/data";
+import { daysToExam, fmtDate, fmtHour } from "@/lib/cat";
+import { minutesToH } from "@/lib/progress";
+import { TodayCard } from "@/components/dash/today-card";
+import { PaceChart } from "@/components/dash/pace-chart";
+import { Heatmap } from "@/components/dash/heatmap";
+import { CoachCard, CoachSkeleton } from "@/components/dash/coach-card";
+
+export default async function Dashboard() {
+  const { user } = await requireProfile();
+  const s = (await loadUserState(user.id))!;
+  const left = daysToExam(s.today);
+
+  return (
+    <div className="space-y-4">
+      <Hero s={s} left={left} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2 rise" style={{ animationDelay: "40ms" }}>
+          <TodayCard plan={s.todayPlan} done={s.todayDone} />
+        </div>
+        <div className="rise" style={{ animationDelay: "80ms" }}><GoalCard s={s} /></div>
+      </div>
+
+      <div className="rise" style={{ animationDelay: "120ms" }}><CostOfToday s={s} /></div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="card p-5 lg:col-span-2 rise" style={{ animationDelay: "160ms" }}>
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <div>
+              <div className="label">Road to 29 Nov</div>
+              <h3 className="mt-1 font-medium">Planned vs. done study hours</h3>
+            </div>
+            <p className="text-[13px] text-muted">
+              At your {Math.round(s.stats.consistency * 100)}% consistency you&apos;ll put in{" "}
+              <span className="num text-ink">{Math.round(s.stats.projectedTotal / 60)}h</span> of{" "}
+              <span className="num text-ink">{Math.round(s.stats.planTotal / 60)}h</span> planned.
+            </p>
+          </div>
+          <div className="mt-4"><PaceChart series={s.stats.series} today={s.today} /></div>
+        </div>
+        <div className="space-y-4">
+          <div className="card p-5 rise" style={{ animationDelay: "200ms" }}>
+            <div className="flex items-center justify-between">
+              <span className="label">Last 4 weeks</span>
+              <span className="chip num"><Flame size={12} className={s.stats.streak ? "text-warn" : "text-muted"} />{s.stats.streak}-day streak</span>
+            </div>
+            <div className="mt-4"><Heatmap history={s.stats.history} today={s.today} /></div>
+          </div>
+          <Suspense fallback={<CoachSkeleton />}><CoachCard state={s} /></Suspense>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const STATUS: Record<UserState["stats"]["todayStatus"], { tone: string; text: (s: UserState) => string }> = {
+  ahead: { tone: "good", text: () => "Ahead of pace. Bank it, then stop on time." },
+  "on-track": { tone: "good", text: () => "On pace for today." },
+  behind: { tone: "warn", text: () => "Behind pace for this time of day." },
+  "way-behind": { tone: "bad", text: (s) => s.stats.today.done === 0 ? `It's ${fmtHour(s.hour)} and nothing is logged yet.` : "Well behind pace. Today is slipping." },
+  "not-started": { tone: "muted", text: () => "Day hasn't started. First block sets the tone." },
+  rest: { tone: "muted", text: () => "Rest day." },
+};
+
+function Hero({ s, left }: { s: UserState; left: number }) {
+  const st = STATUS[s.stats.todayStatus];
+  const pct = Math.round((s.stats.today.ratio || 0) * 100);
+  const exp = s.stats.today.planned ? Math.round((s.stats.todayExpected / s.stats.today.planned) * 100) : 0;
+  const greet = s.hour < 12 ? "Good morning" : s.hour < 17 ? "Good afternoon" : "Good evening";
+  return (
+    <section className="relative rise">
+      <div className="grid-bg absolute -inset-x-4 -top-6 h-48 -z-10" />
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <p className="text-muted text-sm">{greet}, {s.firstName} · {fmtDate(s.today, { weekday: "long", day: "numeric", month: "long" })}</p>
+          <h1 className="mt-1 text-[32px] md:text-[40px] font-semibold tracking-[-0.03em] leading-tight">
+            <span className="num">{left}</span> days. <span className="text-muted">Make today count.</span>
+          </h1>
+        </div>
+        {s.stats.todayStatus !== "rest" && (
+          <div className={clsx("rounded-xl border px-4 py-3 md:min-w-[320px]",
+            st.tone === "good" && "border-good/30 bg-good-soft",
+            st.tone === "warn" && "border-warn/30 bg-warn-soft",
+            st.tone === "bad" && "border-bad/30 bg-bad-soft",
+            st.tone === "muted" && "border-line bg-panel")}>
+            <div className="flex items-center gap-2 text-[13px] font-medium">
+              {st.tone === "bad" || st.tone === "warn" ? <AlertTriangle size={14} className={st.tone === "bad" ? "text-bad" : "text-warn"} /> : <span className={clsx("size-2 rounded-full", st.tone === "good" ? "bg-good" : "bg-muted")} />}
+              {st.text(s)}
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-line relative overflow-hidden">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-[var(--s-done)] transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
+              <div className="absolute inset-y-[-3px] w-0.5 bg-ink" style={{ left: `${exp}%` }} title="Where you should be now" />
+            </div>
+            <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-muted num">
+              <span>{pct}% done · {minutesToH(s.stats.today.done)}</span>
+              <span>should be ~{exp}% by {fmtHour(s.hour)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function GoalCard({ s }: { s: UserState }) {
+  const target = s.profile.targetPercentile;
+  const p = s.projection;
+  const gap = p ? target - p.projected : null;
+  return (
+    <div className="card p-5 h-full flex flex-col">
+      <div className="flex items-center justify-between">
+        <span className="label inline-flex items-center gap-1.5"><Target size={12} /> Goal</span>
+        {s.profile.dreamColleges.length > 0 && <span className="text-[12px] text-muted truncate max-w-[60%]">{s.profile.dreamColleges.join(" · ")}</span>}
+      </div>
+      <div className="mt-4 flex items-end gap-6">
+        <div>
+          <div className="text-[12px] text-muted">Target</div>
+          <div className="num text-[34px] leading-none font-medium mt-1">{target}</div>
+        </div>
+        <div>
+          <div className="text-[12px] text-muted">Projected on CAT day</div>
+          <div className={clsx("num text-[34px] leading-none font-medium mt-1", p ? (gap! <= 0 ? "text-good" : gap! < 3 ? "text-warn" : "text-bad") : "text-muted")}>
+            {p ? p.projected.toFixed(1) : "—"}
+          </div>
+        </div>
+      </div>
+      {p ? (
+        <>
+          <Scale target={target} base={p.base} projected={p.projected} />
+          <p className="mt-3 text-[13px] text-ink-2 leading-relaxed">
+            {gap! <= 0
+              ? <>On course to clear your target if you keep this consistency.</>
+              : <>Short by <b className="num">{gap!.toFixed(1)}</b> %ile. At full consistency you&apos;d gain ~<span className="num">{(p.perWeekNow / Math.max(0.05, s.stats.consistency)).toFixed(1)}</span> %ile/week instead of <span className="num">{p.perWeekNow.toFixed(1)}</span>.</>}
+          </p>
+          <details className="mt-auto pt-3 text-[11.5px] text-muted">
+            <summary className="cursor-pointer hover:text-ink">How is this projected?</summary>
+            <p className="mt-1.5 leading-relaxed">
+              Fits the trend of your {p.mocks} mock percentiles (the gap to 100 shrinking by a steady % per day, since gains get harder near the top), then scales
+              that improvement rate by your 14-day consistency ({Math.round(s.stats.consistency * 100)}%). The rate is capped so one lucky mock can&apos;t dominate. It&apos;s a rough estimate, not a prediction.
+            </p>
+          </details>
+        </>
+      ) : (
+        <div className="mt-4 rounded-xl border border-dashed border-line-2 p-3 text-[13px] text-muted">
+          Log <b className="text-ink">{2 - s.mocks.length}</b> more mock{2 - s.mocks.length === 1 ? "" : "s"} to unlock your percentile projection.{" "}
+          <Link href="/mocks" className="text-accent hover:underline">Log a mock →</Link>
+          {s.nextMock && <div className="mt-1">Next planned: {s.nextMock.mockName} on {fmtDate(s.nextMock.date, { weekday: "short", day: "numeric", month: "short" })}.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Scale({ target, base, projected }: { target: number; base: number; projected: number }) {
+  const lo = Math.max(0, Math.floor(Math.min(base, target, projected) / 5) * 5 - 5);
+  const x = (v: number) => `${((v - lo) / (100 - lo)) * 100}%`;
+  return (
+    <div className="mt-5">
+      <div className="relative h-2 rounded-full bg-line">
+        <div className="absolute inset-y-0 rounded-full bg-[var(--s-done)]/35" style={{ left: x(Math.min(base, projected)), width: `calc(${x(Math.max(base, projected))} - ${x(Math.min(base, projected))})` }} />
+        <Dot at={x(base)} className="bg-panel border-2 border-[var(--s-done)]" label={`now ${base.toFixed(0)}`} />
+        <Dot at={x(projected)} className="bg-[var(--s-done)] border-2 border-panel" label="" />
+        <div className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-ink" style={{ left: x(target) }} />
+      </div>
+      <div className="mt-2 flex justify-between text-[10.5px] text-muted num"><span>{lo}</span><span>target {target}</span><span>100</span></div>
+    </div>
+  );
+}
+function Dot({ at, className, label }: { at: string; className: string; label: string }) {
+  return <div className={clsx("absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-3.5 rounded-full", className)} style={{ left: at }} title={label} />;
+}
+
+function CostOfToday({ s }: { s: UserState }) {
+  const i = s.impact;
+  const planned = s.stats.today.planned;
+  if (!planned) return null;
+  const hasP = i.percentileIfDone != null && i.percentileIfSkip != null;
+  const rows = [
+    hasP && { k: "Projected CAT %ile", done: i.percentileIfDone!.toFixed(1), skip: i.percentileIfSkip!.toFixed(1), delta: (i.percentileIfSkip! - i.percentileIfDone!).toFixed(2) },
+    { k: "14-day consistency", done: `${Math.round(i.consistencyIfDone * 100)}%`, skip: `${Math.round(i.consistencyIfSkip * 100)}%`, delta: `${Math.round((i.consistencyIfSkip - i.consistencyIfDone) * 100)} pts` },
+    { k: "Backlog to carry", done: minutesToH(s.stats.debtMinutes), skip: minutesToH(s.stats.debtMinutes + i.debtAddedMinutes), delta: `+${minutesToH(i.debtAddedMinutes)}` },
+    { k: "Extra study per day till CAT", done: `${Math.round(s.stats.extraPerDay)} min`, skip: `${Math.round(i.extraPerDayIfSkip)} min`, delta: `+${Math.round(i.extraPerDayIfSkip - s.stats.extraPerDay)} min` },
+  ].filter(Boolean) as { k: string; done: string; skip: string; delta: string }[];
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-5 pt-5 flex items-baseline justify-between flex-wrap gap-2">
+        <div>
+          <div className="label">The cost of today</div>
+          <h3 className="mt-1 font-medium">What finishing today vs. skipping it does to your goal</h3>
+        </div>
+        <p className="text-[12.5px] text-muted">Today = <span className="num text-ink">{((planned / Math.max(1, s.stats.remainingPlanned)) * 100).toFixed(1)}%</span> of all prep left before CAT</p>
+      </div>
+      <div className="mt-4 grid md:grid-cols-2 border-t border-line">
+        <div className="p-5 md:border-r border-line bg-good-soft/40">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-good"><ArrowUpRight size={15} /> If you finish today</div>
+          <ul className="mt-3 space-y-2">
+            {rows.map((r) => (
+              <li key={r.k} className="flex justify-between text-[13.5px]"><span className="text-muted">{r.k}</span><span className="num">{r.done}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="p-5 bg-bad-soft/40 border-t md:border-t-0 border-line">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-bad"><ArrowDownRight size={15} /> If you skip the rest</div>
+          <ul className="mt-3 space-y-2">
+            {rows.map((r) => (
+              <li key={r.k} className="flex justify-between text-[13.5px]">
+                <span className="text-muted">{r.k}</span>
+                <span className="num">{r.skip} <span className="text-bad text-[11.5px] ml-1">{r.delta}</span></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      {!hasP && (
+        <div className="px-5 py-3 border-t border-line text-[12.5px] text-muted inline-flex items-center gap-1.5 w-full">
+          <TrendingUp size={13} /> Log 2 mocks and this will also show the percentile you give up by skipping.
+        </div>
+      )}
+    </div>
+  );
+}
