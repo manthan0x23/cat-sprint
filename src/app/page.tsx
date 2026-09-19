@@ -29,7 +29,7 @@ export default async function Landing() {
         </h1>
         <p className="mt-6 text-[17px] text-ink-2 max-w-xl mx-auto leading-relaxed">
           Plan your mocks, set daily QA · RC · VA · DILR targets, and watch how each day&apos;s work
-          moves your projected percentile. An AI coach checks in when you fall behind.
+          moves your projected mock score, and what that score got in past CATs. An AI coach checks in when you fall behind.
         </p>
         <form action={signInWithGoogle} className="mt-9 flex justify-center">
           <button className="btn btn-primary h-11 px-5 text-[15px]">
@@ -46,7 +46,7 @@ export default async function Landing() {
       <section className="mx-auto max-w-5xl px-4 mt-20 md:mt-28 pb-20 grid gap-3 md:grid-cols-4">
         {[
           { icon: CalendarRange, t: "Mock calendar", d: "Auto-planned to CAT day: 2/week now, 3/week in the final stretch, tapering at the end." },
-          { icon: TrendingUp, t: "Cause → effect", d: "See how skipping today changes your backlog, your consistency and your projected %ile." },
+          { icon: TrendingUp, t: "Cause → effect", d: "See how skipping today changes your backlog, your consistency and your projected score." },
           { icon: Brain, t: "AI coach", d: "A Qwen-powered brief each morning and nudges that use your own goal and numbers." },
           { icon: BellRing, t: "Phone reminders", d: "3 PM and you're at 10%? You'll get a push notification on your phone." },
         ].map(({ icon: Icon, t, d }, i) => (
