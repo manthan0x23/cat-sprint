@@ -1,18 +1,23 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { aiCache, aiUsage } from "@/db/schema";
+import { aiCache, aiUsage, aiUserUsage } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { istNow } from "./cat";
 
-// Free OpenRouter accounts get ~50 requests/day across ALL users of the key,
-// so every call goes through a global daily budget and results are cached per user/day/kind.
+// Free OpenRouter accounts get ~50 requests/day across ALL users of the key, so:
+//   - only the morning brief uses AI automatically (1/user/day); check-ins and later dashboard
+//     cards use the numeric templates in coach.ts,
+//   - the manual "rewrite" button may use AI too, capped by a per-user daily allowance,
+//   - a global daily budget is the hard stop. Results are cached per user/day/kind.
 
 const MODEL = process.env.OPENROUTER_MODEL || "qwen/qwen3.8-27b:free";
 // OpenRouter tries these in order if the primary is down or rate-limited (same free quota).
 const FALLBACKS = (process.env.OPENROUTER_FALLBACKS || "google/gemma-4-31b-it:free,deepseek/deepseek-v4-flash-0731:free")
   .split(",").map((m) => m.trim()).filter(Boolean);
 const BUDGET = Number(process.env.AI_DAILY_BUDGET || 45);
+export const USER_DAILY = Number(process.env.AI_USER_DAILY || 2);
+const AUTO_AI_KINDS = new Set(["brief"]);
 
 const SYSTEM = `You are "Sprint", a sharp, warm CAT (IIM entrance exam) coach inside a planner app.
 Rules: be concrete and numeric, reference the user's own numbers and goal. Max 3 short sentences unless asked.
@@ -29,12 +34,29 @@ async function takeBudget(): Promise<boolean> {
   return (rows[0]?.count ?? 0) <= BUDGET;
 }
 
+async function takeUserBudget(userId: string): Promise<boolean> {
+  const { date } = istNow();
+  const rows = await db
+    .insert(aiUserUsage)
+    .values({ userId, date, count: 1 })
+    .onConflictDoUpdate({ target: [aiUserUsage.userId, aiUserUsage.date], set: { count: sql`${aiUserUsage.count} + 1` } })
+    .returning({ count: aiUserUsage.count });
+  return (rows[0]?.count ?? 0) <= USER_DAILY;
+}
+
+export async function aiCallsLeft(userId: string) {
+  const { date } = istNow();
+  const row = await db.query.aiUserUsage.findFirst({ where: and(eq(aiUserUsage.userId, userId), eq(aiUserUsage.date, date)) });
+  return Math.max(0, USER_DAILY - (row?.count ?? 0));
+}
+
 function clean(text: string) {
   return text.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/^["\s]+|["\s]+$/g, "").trim();
 }
 
-export async function askAI(prompt: string, maxTokens = 220): Promise<string | null> {
+export async function askAI(prompt: string, userId: string, maxTokens = 220): Promise<string | null> {
   if (!process.env.OPENROUTER_API_KEY) return null;
+  if (!(await takeUserBudget(userId))) return null;
   if (!(await takeBudget())) return null;
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -71,7 +93,11 @@ export async function askAI(prompt: string, maxTokens = 220): Promise<string | n
   }
 }
 
-/** Cached per (user, IST date, kind). Falls back to `fallback` when AI is unavailable (not cached, so it retries later). */
+/**
+ * Cached per (user, IST date, kind). Only AUTO_AI_KINDS call the model on their own; `force`
+ * (the user's rewrite button) may call it for any kind. Falls back to `fallback` when AI is not
+ * allowed or unavailable (not cached, so it retries later).
+ */
 export async function cachedAI(userId: string, kind: string, prompt: string, fallback: string, opts: { force?: boolean } = {}) {
   const { date } = istNow();
   if (!opts.force) {
@@ -79,8 +105,9 @@ export async function cachedAI(userId: string, kind: string, prompt: string, fal
       where: and(eq(aiCache.userId, userId), eq(aiCache.date, date), eq(aiCache.kind, kind)),
     });
     if (hit) return { text: hit.text, ai: true };
+    if (!AUTO_AI_KINDS.has(kind)) return { text: fallback, ai: false };
   }
-  const text = await askAI(prompt);
+  const text = await askAI(prompt, userId);
   if (!text) return { text: fallback, ai: false };
   await db
     .insert(aiCache)

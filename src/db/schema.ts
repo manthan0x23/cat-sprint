@@ -145,6 +145,17 @@ export const aiUsage = pgTable("ai_usage", {
   count: integer("count").notNull().default(0),
 });
 
+// Per-user AI calls per IST day (the free tier is shared by everyone, so nobody gets more than their share).
+export const aiUserUsage = pgTable(
+  "ai_user_usage",
+  {
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.date] })],
+);
+
 export const notificationsSent = pgTable(
   "notification_sent",
   {

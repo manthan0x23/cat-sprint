@@ -1,7 +1,7 @@
 import { cache } from "react";
 import clsx from "clsx";
 import { Sparkles } from "lucide-react";
-import { cachedAI } from "@/lib/ai";
+import { aiCallsLeft, cachedAI } from "@/lib/ai";
 import { dashboardSlot, fallback, prompt, TITLES } from "@/lib/coach";
 import { loadCoachContext } from "@/lib/coach-context";
 import type { UserState } from "@/lib/data";
@@ -25,7 +25,7 @@ export async function CoachCard({ state }: { state: UserState }) {
         <span className="label inline-flex items-center gap-1.5">
           <Sparkles size={12} className={comeback ? "text-bad" : "text-accent"} /> Coach · {TITLES[sit](state)}
         </span>
-        <RegenButton />
+        <RegenButton left={await aiCallsLeft(state.profile.userId)} />
       </div>
       <p className="mt-3 text-[15px] leading-relaxed text-ink">{text}</p>
       <p className="mt-3 text-[11px] text-muted">

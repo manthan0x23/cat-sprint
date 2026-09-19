@@ -20,7 +20,7 @@ which applies new files once each and records them in `_migrations`. On Vercel i
 ## Deploy (Vercel)
 1. Push to GitHub → import in Vercel.
 2. Env vars (Production): `DATABASE_URL` (Neon pooled URL), `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
-   `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=qwen/qwen3.8-27b:free`, `AI_DAILY_BUDGET=45`,
+   `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=qwen/qwen3.8-27b:free`, `AI_DAILY_BUDGET=45` (all users), `AI_USER_DAILY=2` (per user: morning brief + 1 rewrite),
    `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`, `APP_URL=https://<domain>`.
    Do NOT set `DEV_LOGIN`.
 3. Google OAuth client → add `https://<domain>` origin and `https://<domain>/api/auth/callback/google` redirect.

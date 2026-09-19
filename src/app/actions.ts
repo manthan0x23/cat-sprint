@@ -11,7 +11,7 @@ import { EXAM_DATE, istNow, SECTIONS, weekStartOf, type Section } from "@/lib/ca
 import { generatePlan } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
 import { sendEmail, sendPush } from "@/lib/notify";
-import { cachedAI } from "@/lib/ai";
+import { aiCallsLeft, cachedAI, USER_DAILY } from "@/lib/ai";
 import { loadUserState } from "@/lib/data";
 import { dashboardSlot, fallback, prompt } from "@/lib/coach";
 import { loadCoachContext } from "@/lib/coach-context";
@@ -285,14 +285,16 @@ export async function sendTestNotification(): Promise<{ push: string; email: str
 }
 
 // ---------- AI ----------
-export async function regenerateBrief() {
+export async function regenerateBrief(): Promise<{ ok: boolean; message: string }> {
   const userId = await uid();
+  if ((await aiCallsLeft(userId)) <= 0) return { ok: false, message: `You've used today's ${USER_DAILY} AI rewrites. Resets at midnight IST.` };
   const s = await loadUserState(userId);
-  if (!s) return;
+  if (!s) return { ok: false, message: "No plan yet." };
   const ctx = await loadCoachContext(s);
   const { sit, kind } = dashboardSlot(s, ctx);
-  await cachedAI(userId, kind, prompt(s, sit, ctx), fallback(s, sit, ctx), { force: true });
+  const r = await cachedAI(userId, kind, prompt(s, sit, ctx), fallback(s, sit, ctx), { force: true });
   refresh();
+  return r.ai ? { ok: true, message: "Rewritten." } : { ok: false, message: "AI is busy (shared free quota). Showing the numbers-only version." };
 }
 
 export async function resetPlanFromToday(templateId: string) {
