@@ -2,14 +2,14 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import { CalendarDays, ChevronDown, Copy, List, Lock, Minus, Pencil, Plus, Trash2, Wand2, X } from "lucide-react";
-import type { DayType, PhaseDef, Targets, WeekSlot } from "@/db/schema";
+import type { DayType, PhaseDef, Sectionals, Targets, WeekSlot } from "@/db/schema";
 import { addDays, diffDays, EXAM_DATE, fmtDate, SECTIONS, SECTION_META, weekday, weekStartOf, ZERO } from "@/lib/cat";
 import { generatePhased, PHASE_LABEL, phaseOf, presetPhases } from "@/lib/plan-generator";
 import { weekStatus, type WeekGoal } from "@/lib/week";
 import { plannedMinutes, minutesToH } from "@/lib/progress";
 import { applyTemplate, deleteCustomTemplate, saveCustomTemplate, updateDay } from "@/app/actions";
 
-type Day = { date: string; type: DayType; targets: Targets; mockName: string | null; note: string | null; tag: string | null; phase: string | null; mockDone: boolean; analysisDone: boolean };
+type Day = { date: string; type: DayType; targets: Targets; mockName: string | null; note: string | null; tag: string | null; phase: string | null; sectionals: Sectionals | null; mockDone: boolean; analysisDone: boolean };
 type Tpl = { id: string; name: string; description: string; practice: Targets; mock: Targets; mocksPerWeek: number; finalStretchMocksPerWeek: number; phases: PhaseDef[] | null; custom: boolean };
 type Draft = { id?: string; name: string; phases: PhaseDef[] };
 
@@ -93,6 +93,7 @@ export function PlannerView({ today, plans, templates, currentTemplate, weekGoal
         <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded bg-accent-soft border border-accent/25" /> Mock</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded bg-panel border border-line" /> Practice</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded bg-panel-2 border border-dashed border-line" /> Rest</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-good" /> Sectional planned</span>
         <span className="inline-flex items-center gap-1.5"><span className="text-warn font-medium">Review</span> redo the last mock&apos;s mistakes</span>
       </div>
 
@@ -143,10 +144,14 @@ function CalendarGrid({ today, plans, byDate, onPick }: { today: string; plans: 
                 <span className={clsx("num text-[11px] md:text-[12px]", monthStart && "font-semibold")}>
                   {monthStart ? fmtDate(d, { day: "numeric", month: "short" }) : Number(d.slice(8))}
                 </span>
-                {p?.type === "mock" && <span className="size-1.5 rounded-full bg-accent" />}
+                <span className="flex gap-0.5">
+                  {p?.sectionals && p.type !== "rest" && <span className="size-1.5 rounded-full bg-good" title={sectionalLine(p.sectionals)} />}
+                  {p?.type === "mock" && <span className="size-1.5 rounded-full bg-accent" />}
+                </span>
               </div>
               {isExam ? <div className="mt-1 text-[11px] md:text-[13px] font-semibold">CAT</div> : p && (
                 <div className="mt-1 hidden md:block">
+                  {p.sectionals && p.type !== "rest" && <div className="text-[10.5px] text-good truncate">+ {sectionalLine(p.sectionals)}</div>}
                   {p.type === "mock" ? (
                     <div className="text-[12px] font-medium text-accent truncate">{p.mockName}</div>
                   ) : p.type === "rest" ? (
@@ -169,6 +174,73 @@ function CalendarGrid({ today, plans, byDate, onPick }: { today: string; plans: 
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+const SECTIONAL_KEYS = [["varc", "VARC"], ["dilr", "DILR"], ["qa", "QA"]] as const;
+const NO_SECTIONALS: Sectionals = { varc: 0, dilr: 0, qa: 0 };
+
+function sectionalLine(s: Sectionals | null | undefined) {
+  if (!s) return "";
+  const parts = SECTIONAL_KEYS.filter(([k]) => s[k] > 0).map(([k, l]) => `${s[k] > 1 ? s[k] + " " : ""}${l}`);
+  return parts.length ? `${parts.join(" + ")} sectional${SECTIONAL_KEYS.reduce((a, [k]) => a + s[k], 0) > 1 ? "s" : ""}` : "";
+}
+
+// One line per item: label on the left, − value + on the right. Used in the day dialog and for sectionals.
+function StepRow({ label, hint, value, step = 1, max = 500, onChange }: { label: string; hint?: string; value: number; step?: number; max?: number; onChange: (n: number) => void }) {
+  const set = (n: number) => onChange(Math.max(0, Math.min(max, Math.round(n) || 0)));
+  const btn = "size-8 grid place-items-center rounded-lg border border-line bg-panel text-ink-2 hover:border-line-2 active:scale-95 transition disabled:opacity-35";
+  return (
+    <div className="flex items-center gap-3 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13.5px] font-medium">{label}</div>
+        {hint && <div className="text-[11.5px] text-muted">{hint}</div>}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button type="button" className={btn} onClick={() => set(value - step)} disabled={value <= 0} aria-label={`Less ${label}`}><Minus size={14} /></button>
+        <input type="number" inputMode="numeric" min={0} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label}
+          className="h-8 w-12 text-center num font-semibold text-[15px] bg-transparent outline-none rounded-md focus:bg-panel-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+        <button type="button" className={btn} onClick={() => set(value + step)} disabled={value >= max} aria-label={`More ${label}`}><Plus size={14} /></button>
+      </div>
+    </div>
+  );
+}
+
+function TargetRows({ value, onChange }: { value: Targets; onChange: (t: Targets) => void }) {
+  return (
+    <div className="rounded-xl border border-line divide-y divide-line bg-panel">
+      {SECTIONS.map((k) => (
+        <StepRow key={k} label={SECTION_META[k].label} hint={SECTION_META[k].unit} value={value[k]} step={SECTION_META[k].step}
+          onChange={(n) => onChange({ ...value, [k]: n })} />
+      ))}
+    </div>
+  );
+}
+
+// Sectionals stay out of the way: a small link until the day has one, then compact rows.
+function SectionalCounts({ value, onChange }: { value: Sectionals | null | undefined; onChange: (s: Sectionals) => void }) {
+  const v = value ?? NO_SECTIONALS;
+  const any = v.varc + v.dilr + v.qa > 0;
+  const [open, setOpen] = useState(any);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:underline">
+        <Plus size={14} /> Plan a sectional
+      </button>
+    );
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="label">Sectionals</span>
+        {!any && <button type="button" className="text-[12px] text-muted hover:text-ink" onClick={() => setOpen(false)}>Hide</button>}
+      </div>
+      <div className="rounded-xl border border-line divide-y divide-line bg-panel">
+        {SECTIONAL_KEYS.map(([k, label]) => (
+          <StepRow key={k} label={`${label} sectional`} value={v[k]} max={5} onChange={(n) => onChange({ ...v, [k]: n })} />
+        ))}
       </div>
     </div>
   );
@@ -224,6 +296,7 @@ function ListView({ today, plans, onPick }: { today: string; plans: Day[]; onPic
                             {p.type !== "rest" && (
                               <div className="text-[12px] text-muted num truncate">{p.type === "mock" ? `Mock + analysis${targetLine(p.targets) !== "No practice" ? " · " + targetLine(p.targets) : ""}` : targetLine(p.targets)}</div>
                             )}
+                            {p.type !== "rest" && p.sectionals && <div className="text-[12px] text-good truncate">+ {sectionalLine(p.sectionals)}</div>}
                           </>
                         )}
                       </div>
@@ -332,16 +405,17 @@ function Stepper({ s, value, onChange }: { s: (typeof SECTIONS)[number]; value: 
       <div className="mt-1.5 flex items-center gap-1">
         <button type="button" className={btn} onClick={() => set(value - step)} disabled={value <= 0} aria-label={`Less ${short}`}><Minus size={14} /></button>
         <input type="number" inputMode="numeric" min={0} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={`${short} ${unit}`}
-          className="h-9 w-full min-w-0 text-center num font-medium text-[15px] bg-transparent outline-none rounded-md focus:bg-panel" />
+          className="h-9 w-full min-w-[3ch] flex-1 text-center num font-medium text-[15px] bg-transparent outline-none rounded-md focus:bg-panel [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
         <button type="button" className={btn} onClick={() => set(value + step)} aria-label={`More ${short}`}><Plus size={14} /></button>
       </div>
     </div>
   );
 }
 
-function TargetInputs({ value, onChange }: { value: Targets; onChange: (t: Targets) => void }) {
+// Two per row in normal dialogs; four across only where the sheet is wide enough (`wide`).
+function TargetInputs({ value, onChange, wide }: { value: Targets; onChange: (t: Targets) => void; wide?: boolean }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    <div className={clsx("grid grid-cols-2 gap-2", wide && "md:grid-cols-4")}>
       {SECTIONS.map((s) => <Stepper key={s} s={s} value={value[s]} onChange={(n) => onChange({ ...value, [s]: n })} />)}
     </div>
   );
@@ -363,6 +437,7 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
   const [targets, setTargets] = useState(day.targets);
   const [mockName, setMockName] = useState(day.mockName ?? "");
   const [note, setNote] = useState(day.note ?? "");
+  const [sectionals, setSectionals] = useState<Sectionals | null>(day.sectionals);
   const tag = type === day.type ? day.tag : type === "rest" ? "Rest" : null;
   const [pending, start] = useTransition();
   const tpl = templates[0];
@@ -382,7 +457,7 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
           <div className="flex gap-2">
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn btn-accent" disabled={pending}
-              onClick={() => start(async () => { await updateDay(day.date, { type, targets, mockName, note, tag }); onClose(); })}>
+              onClick={() => start(async () => { await updateDay(day.date, { type, targets, mockName, note, tag, sectionals: type === "rest" ? null : sectionals }); onClose(); })}>
               {pending ? "Saving…" : "Save day"}
             </button>
           </div>
@@ -398,7 +473,12 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
       {type !== "rest" && (
         <div className="mt-4">
           <div className="label mb-2">{type === "mock" ? "Top-up practice (besides the mock)" : "Targets"}</div>
-          <TargetInputs value={targets} onChange={setTargets} />
+          <TargetRows value={targets} onChange={setTargets} />
+        </div>
+      )}
+      {type !== "rest" && (
+        <div className="mt-3">
+          <SectionalCounts value={sectionals} onChange={setSectionals} />
         </div>
       )}
       <label className="block mt-4">
@@ -626,7 +706,7 @@ function PhaseCard({ index, phase, from, isLast, canRemove, minStart, nextUntil,
     if (cur.type === type) return;
     // Borrow targets from another day of the same kind so switching doesn't start from zero.
     const like = phase.week.find((s) => s.type === type)?.targets;
-    setSlot(i, { type, targets: type === "rest" ? ZERO : like ?? (type === "mock" ? ZERO : practice[0]?.targets ?? ZERO) });
+    setSlot(i, { type, targets: type === "rest" ? ZERO : like ?? (type === "mock" ? ZERO : practice[0]?.targets ?? ZERO), sectionals: type === "rest" ? null : cur.sectionals });
   };
   const sel = day === null ? null : phase.week[day];
   const perPractice = practice[0] ? plannedMinutes({ date: from, type: "practice", targets: sel?.type === "practice" ? sel.targets : practice[0].targets }) : 0;
@@ -687,7 +767,7 @@ function PhaseCard({ index, phase, from, isLast, canRemove, minStart, nextUntil,
                   className={clsx("rounded-lg border py-1.5 text-center transition-all active:scale-95",
                     s.type === "mock" ? "bg-accent-soft border-accent/30" : s.type === "rest" ? "bg-panel-2 border-dashed border-line" : "bg-panel border-line",
                     day === i && "ring-2 ring-accent ring-offset-1 ring-offset-panel")}>
-                  <div className="text-[11px] font-medium">{WEEKDAYS[i].slice(0, 2)}</div>
+                  <div className="text-[11px] font-medium relative">{WEEKDAYS[i].slice(0, 2)}{s.type !== "rest" && s.sectionals && (s.sectionals.varc + s.sectionals.dilr + s.sectionals.qa) > 0 && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-good" />}</div>
                   <div className={clsx("text-[9.5px] mt-0.5 num", s.type === "mock" ? "text-accent font-medium" : "text-muted")}>
                     {s.type === "mock" ? "Mock" : s.type === "rest" ? "Rest" : `${Math.round(plannedMinutes({ date: from, type: "practice", targets: s.targets }) / 60)}h`}
                   </div>
@@ -705,7 +785,7 @@ function PhaseCard({ index, phase, from, isLast, canRemove, minStart, nextUntil,
                 </div>
                 {practice.length ? (
                   <>
-                    <TargetInputs value={practice[0].targets} onChange={setAllPractice} />
+                    <TargetInputs wide value={practice[0].targets} onChange={setAllPractice} />
                     {differs && <p className="mt-2 text-[12px] text-warn">Your practice days have different targets. Changing them here sets all of them to the same.</p>}
                   </>
                 ) : <p className="text-[12.5px] text-muted">No practice days in this week. Tap a day above to add one.</p>}
@@ -720,8 +800,11 @@ function PhaseCard({ index, phase, from, isLast, canRemove, minStart, nextUntil,
                 {sel.type !== "rest" && (
                   <div className="mt-3">
                     <div className="label mb-2">{sel.type === "mock" ? "Top-up practice (besides the mock)" : "Targets"}</div>
-                    <TargetInputs value={sel.targets} onChange={(t) => setSlot(day!, { ...sel, targets: t })} />
+                    <TargetInputs wide value={sel.targets} onChange={(t) => setSlot(day!, { ...sel, targets: t })} />
                     <p className="mt-2 text-[12px] text-muted num">≈ {minutesToH(plannedMinutes({ date: from, type: sel.type, targets: sel.targets }))} of work</p>
+                    <div className="mt-3">
+                      <SectionalCounts key={day} value={sel.sectionals} onChange={(sc) => setSlot(day!, { ...sel, sectionals: sc })} />
+                    </div>
                   </div>
                 )}
               </>

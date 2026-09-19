@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "tsx scripts/migrate.ts && next build",
     "start": "next start",
+    "users": "tsx scripts/users.ts",
     "lint": "eslint",
     "test": "vitest run",
     "db:push": "drizzle-kit push",

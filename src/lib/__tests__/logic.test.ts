@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generatePhased, generatePlan, presetPhases } from "../plan-generator";
+import { cleanSectionals, generatePhased, generatePlan, presetPhases } from "../plan-generator";
 import { SYSTEM_TEMPLATES } from "../templates";
 import { computeStats, projectScore, skipImpact, plannedMinutes, expectedFraction } from "../progress";
 import { istNow, daysToExam, weekday, unitMinutes } from "../cat";
@@ -265,5 +265,23 @@ describe("custom phases", () => {
     expect(ps.at(-1)!.until).toBe("2026-11-28");
     for (let i = 1; i < ps.length; i++) expect(ps[i].until > ps[i - 1].until).toBe(true);
     expect(ps.every((p) => p.week.length === 7)).toBe(true);
+  });
+});
+
+describe("planned sectionals", () => {
+  const P = { type: "practice" as const, targets: { qa: 10, rc: 1, va: 5, dilr: 1 } };
+  const withSec = { ...P, sectionals: { varc: 0, dilr: 1, qa: 0 } };
+  const week = [P, P, withSec, P, P, { type: "rest" as const, targets: { qa: 0, rc: 0, va: 0, dilr: 0 }, sectionals: { varc: 1, dilr: 0, qa: 0 } }, P];
+  const plan = generatePhased("2026-09-21", [{ name: "All", until: "2026-11-28", week }]);
+  it("carries a weekday's sectionals onto each matching day", () => {
+    expect(plan.find((d) => d.date === "2026-09-23")!.sectionals).toEqual({ varc: 0, dilr: 1, qa: 0 }); // Wed
+    expect(plan.find((d) => d.date === "2026-09-22")!.sectionals ?? null).toBeNull(); // Tue
+  });
+  it("never puts sectionals on rest days", () => {
+    expect(plan.find((d) => d.date === "2026-09-26")!.sectionals ?? null).toBeNull(); // Sat (rest)
+  });
+  it("cleanSectionals drops all-zero counts", () => {
+    expect(cleanSectionals({ varc: 0, dilr: 0, qa: 0 })).toBeNull();
+    expect(cleanSectionals({ varc: 2, dilr: 0, qa: 0 })).toEqual({ varc: 2, dilr: 0, qa: 0 });
   });
 });

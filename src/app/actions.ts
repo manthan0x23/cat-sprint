@@ -6,9 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { dayPlans, friendships, mockResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PhaseDef, type PushSub, type Targets } from "@/db/schema";
+import { dayPlans, friendships, mockResults, sectionalResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PhaseDef, type PushSub, type Sectionals, type Targets } from "@/db/schema";
 import { addDays, EXAM_DATE, istNow, SECTIONS, weekStartOf, ZERO, type Section } from "@/lib/cat";
-import { generatePlan, phaseFor, weekIdx } from "@/lib/plan-generator";
+import { cleanSectionals, generatePlan, phaseFor, weekIdx } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
 import { sendEmail, sendPush } from "@/lib/notify";
 import { aiCallsLeft, cachedAI, USER_DAILY } from "@/lib/ai";
@@ -16,6 +16,7 @@ import { loadUserState } from "@/lib/data";
 import { dashboardSlot, fallback, prompt } from "@/lib/coach";
 import { loadCoachContext } from "@/lib/coach-context";
 import { normalizeUsername, relation, RESERVED, USERNAME_RE } from "@/lib/social";
+import { WHATS_NEW } from "@/lib/whats-new";
 
 async function uid() {
   const s = await auth();
@@ -30,6 +31,11 @@ const targetsSchema = z.object({
   dilr: z.coerce.number().int().min(0).max(50),
 });
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const sectionalsSchema = z.object({
+  varc: z.coerce.number().int().min(0).max(5),
+  dilr: z.coerce.number().int().min(0).max(5),
+  qa: z.coerce.number().int().min(0).max(5),
+}).nullish().transform((v) => cleanSectionals(v));
 const sectionSchema = z.enum(SECTIONS);
 
 export async function signInWithGoogle() {
@@ -91,6 +97,7 @@ export async function completeOnboarding(formData: FormData) {
     dreamColleges: data.dreamColleges.split(",").map((s) => s.trim()).filter(Boolean),
     onboarded: true,
     visibilityChosen: true,
+    seenUpdate: WHATS_NEW.id, // brand-new users don't need the "what's new" pop-up
   };
   await db.insert(profiles).values({ userId, ...values }).onConflictDoUpdate({ target: profiles.userId, set: values });
 
@@ -148,7 +155,7 @@ export async function toggleMockFlag(date: string, field: "mockDone" | "analysis
 }
 
 // ---------- Planner ----------
-export async function updateDay(date: string, input: { type: "practice" | "mock" | "rest"; targets: Targets; mockName?: string | null; note?: string | null; tag?: string | null }) {
+export async function updateDay(date: string, input: { type: "practice" | "mock" | "rest"; targets: Targets; mockName?: string | null; note?: string | null; tag?: string | null; sectionals?: Sectionals | null }) {
   const userId = await uid();
   dateSchema.parse(date);
   if (date < istNow().date) throw new Error("Past days are locked");
@@ -157,10 +164,11 @@ export async function updateDay(date: string, input: { type: "practice" | "mock"
   const mockName = type === "mock" ? (z.string().max(80).nullish().parse(input.mockName) || "Mock") : null;
   const note = z.string().max(200).nullish().parse(input.note) ?? null;
   const tag = z.string().max(24).nullish().parse(input.tag) ?? null;
+  const sectionals = type === "rest" ? null : sectionalsSchema.parse(input.sectionals);
   await db
     .insert(dayPlans)
-    .values({ userId, date, type, targets, mockName, note, tag })
-    .onConflictDoUpdate({ target: [dayPlans.userId, dayPlans.date], set: { type, targets, mockName, note, tag } });
+    .values({ userId, date, type, targets, mockName, note, tag, sectionals })
+    .onConflictDoUpdate({ target: [dayPlans.userId, dayPlans.date], set: { type, targets, mockName, note, tag, sectionals } });
   refresh();
 }
 
@@ -190,7 +198,7 @@ export async function applyTemplate(templateId: string, from: string, to: string
         const own = p.week[weekIdx(d.date)];
         const slot = own.type === d.type ? own : p.week.find((s) => s.type === d.type);
         const targets = slot?.targets ?? (d.type === "mock" ? ZERO : tpl.practice);
-        await db.update(dayPlans).set({ targets, phase: p.name }).where(eq(dayPlans.id, d.id));
+        await db.update(dayPlans).set({ targets, phase: p.name, sectionals: cleanSectionals(slot?.sectionals) }).where(eq(dayPlans.id, d.id));
         continue;
       }
       const targets = applyWeakness(d.type === "mock" ? tpl.mock : tpl.practice, w);
@@ -209,7 +217,7 @@ export async function applyTemplate(templateId: string, from: string, to: string
 const phasesSchema = z.array(z.object({
   name: z.string().trim().min(1).max(24),
   until: dateSchema,
-  week: z.array(z.object({ type: z.enum(["practice", "mock", "rest"]), targets: targetsSchema })).length(7),
+  week: z.array(z.object({ type: z.enum(["practice", "mock", "rest"]), targets: targetsSchema, sectionals: sectionalsSchema })).length(7),
 })).min(1).max(8);
 
 /** Creates (no id) or updates (id) a phase-based custom template. Returns its id. */
@@ -221,7 +229,7 @@ export async function saveCustomTemplate(input: { id?: string; name: string; pha
   for (let i = 1; i < phases.length; i++) {
     if (phases[i].until <= phases[i - 1].until) throw new Error(`"${phases[i].name}" must end after "${phases[i - 1].name}"`);
   }
-  for (const p of phases) for (const s of p.week) if (s.type === "rest") s.targets = ZERO;
+  for (const p of phases) for (const s of p.week) if (s.type === "rest") { s.targets = ZERO; s.sectionals = null; }
   // Summary fields keep older screens (and the day editor defaults) working.
   const first = phases[0].week;
   const count = (w: PhaseDef["week"]) => w.filter((s) => s.type === "mock").length;
@@ -282,6 +290,31 @@ export async function deleteMockResult(id: number) {
   const userId = await uid();
   await db.delete(mockResults).where(and(eq(mockResults.id, id), eq(mockResults.userId, userId)));
   refresh();
+}
+
+export async function addSectional(input: { date: string; section: string; name: string; score: number; note?: string }) {
+  const userId = await uid();
+  const data = z.object({
+    date: dateSchema,
+    section: z.enum(["varc", "dilr", "qa"]),
+    name: z.string().trim().min(1).max(80),
+    score: z.coerce.number().min(-50).max(150),
+    note: z.string().trim().max(1000).optional().transform((v) => v || null),
+  }).parse(input);
+  if (data.date > istNow().date) throw new Error("Date is in the future");
+  await db.insert(sectionalResults).values({ ...data, userId });
+  refresh();
+}
+
+export async function deleteSectional(id: number) {
+  const userId = await uid();
+  await db.delete(sectionalResults).where(and(eq(sectionalResults.id, id), eq(sectionalResults.userId, userId)));
+  refresh();
+}
+
+export async function dismissWhatsNew(id: string) {
+  const userId = await uid();
+  await db.update(profiles).set({ seenUpdate: z.string().max(80).parse(id) }).where(eq(profiles.userId, userId));
 }
 
 // ---------- Notifications ----------

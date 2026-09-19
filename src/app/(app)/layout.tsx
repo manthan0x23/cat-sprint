@@ -4,7 +4,8 @@ import { NavSheet } from "@/components/nav";
 import { requireProfile } from "@/lib/data";
 import { daysToExam, istNow } from "@/lib/cat";
 import { pendingRequests } from "@/lib/social";
-import { NotificationPrompt, VisibilityPrompt } from "@/components/prompts";
+import { NotificationPrompt, VisibilityPrompt, WhatsNewPrompt } from "@/components/prompts";
+import { WHATS_NEW } from "@/lib/whats-new";
 import { logout } from "../actions";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -26,8 +27,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
       </header>
       <main className="flex-1 mx-auto w-full max-w-6xl px-4 pt-6 pb-16">{children}</main>
-      {/* One prompt at a time: visibility first, then (after it's saved and the layout refreshes) notifications. */}
-      {profile.visibilityChosen ? <NotificationPrompt /> : <VisibilityPrompt current={profile.visibility} />}
+      {/* One prompt at a time: visibility first, then what's new, then (on a later visit) notifications. */}
+      {!profile.visibilityChosen ? <VisibilityPrompt current={profile.visibility} />
+        : profile.seenUpdate !== WHATS_NEW.id ? <WhatsNewPrompt />
+          : <NotificationPrompt />}
     </div>
   );
 }

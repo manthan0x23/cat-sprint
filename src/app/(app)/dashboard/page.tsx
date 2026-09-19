@@ -1,4 +1,7 @@
 import { Suspense } from "react";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { sectionalResults } from "@/db/schema";
 import Link from "next/link";
 import clsx from "clsx";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Flame, Target, TrendingUp } from "lucide-react";
@@ -16,6 +19,10 @@ import { Welcome } from "@/components/dash/welcome-server";
 export default async function Dashboard() {
   const { user } = await requireProfile();
   const s = (await loadUserState(user.id))!;
+  const loggedToday = await db.select({ section: sectionalResults.section }).from(sectionalResults)
+    .where(and(eq(sectionalResults.userId, user.id), eq(sectionalResults.date, s.today)));
+  const sectionalsDone = { varc: 0, dilr: 0, qa: 0 };
+  for (const r of loggedToday) sectionalsDone[r.section]++;
   const left = daysToExam(s.today);
 
   return (
@@ -28,7 +35,7 @@ export default async function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 rise" style={{ animationDelay: "40ms" }}>
-          <TodayCard plan={s.todayPlan} done={s.todayDone} today={s.today} />
+          <TodayCard plan={s.todayPlan} done={s.todayDone} today={s.today} sectionalsDone={sectionalsDone} />
         </div>
         <div className="space-y-4 rise" style={{ animationDelay: "80ms" }}>
           <GoalCard s={s} />

@@ -4,6 +4,7 @@ import { Flame, Lock, Target } from "lucide-react";
 import { db } from "@/db";
 import { profiles, users } from "@/db/schema";
 import { requireProfile } from "@/lib/data";
+import { isLocalAdmin } from "@/lib/admin";
 import { normalizeUsername, relation, sharedStats } from "@/lib/social";
 import { daysToExam } from "@/lib/cat";
 import { minutesToH } from "@/lib/progress";
@@ -21,7 +22,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
   if (!p) notFound();
   const person = await db.query.users.findFirst({ where: eq(users.id, p.userId) });
   const rel = await relation(viewer.id, p.userId);
-  const canSee = rel.kind === "self" || rel.kind === "friends" || p.visibility === "public";
+  const canSee = rel.kind === "self" || rel.kind === "friends" || p.visibility === "public" || (await isLocalAdmin());
   const s = canSee ? await sharedStats(p.userId) : null;
 
   return (

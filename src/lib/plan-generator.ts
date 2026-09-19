@@ -1,4 +1,4 @@
-import type { PhaseDef, Targets } from "@/db/schema";
+import type { PhaseDef, Sectionals, Targets } from "@/db/schema";
 import { addDays, diffDays, EXAM_DATE, weekday, type Section } from "./cat";
 import { applyWeakness, type TemplateDef } from "./templates";
 
@@ -10,7 +10,13 @@ export type GeneratedDay = {
   note: string | null;
   tag: string | null; // short label shown on the calendar
   phase: string | null; // which phase the day belongs to (shown in the planner's phase strip)
+  sectionals?: Sectionals | null;
 };
+
+/** Null when nothing is planned, so "0 0 0" never gets stored. */
+export function cleanSectionals(s: Sectionals | null | undefined): Sectionals | null {
+  return s && (s.varc > 0 || s.dilr > 0 || s.qa > 0) ? { varc: s.varc, dilr: s.dilr, qa: s.qa } : null;
+}
 
 // ---------- How the plan is built ----------
 // Phases (days before CAT):
@@ -167,11 +173,11 @@ export function generatePhased(start: string, phases: PhaseDef[], exam = EXAM_DA
     const slot = p.week[weekIdx(d)];
     if (slot.type === "mock") {
       mockNo++;
-      days.push({ date: d, type: "mock", targets: slot.targets, mockName: `Mock ${mockNo}`, note: "Analyse the same day: every wrong + skipped question.", tag: null, phase: p.name });
+      days.push({ date: d, type: "mock", targets: slot.targets, mockName: `Mock ${mockNo}`, note: "Analyse the same day: every wrong + skipped question.", tag: null, phase: p.name, sectionals: cleanSectionals(slot.sectionals) });
     } else if (slot.type === "rest") {
       days.push({ date: d, type: "rest", targets: zero, mockName: null, note: null, tag: "Rest", phase: p.name });
     } else {
-      days.push({ date: d, type: "practice", targets: slot.targets, mockName: null, note: null, tag: null, phase: p.name });
+      days.push({ date: d, type: "practice", targets: slot.targets, mockName: null, note: null, tag: null, phase: p.name, sectionals: cleanSectionals(slot.sectionals) });
     }
   }
   return days;

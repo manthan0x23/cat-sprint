@@ -48,6 +48,8 @@ export const verificationTokens = pgTable(
 
 // ---------- App tables ----------
 export type Targets = { qa: number; rc: number; va: number; dilr: number };
+/** Sectional tests planned on a day, by section. Tracked apart from the practice time model. */
+export type Sectionals = { varc: number; dilr: number; qa: number };
 
 export const profiles = pgTable("profile", {
   userId: text("userId").primaryKey().references(() => users.id, { onDelete: "cascade" }),
@@ -67,6 +69,7 @@ export const profiles = pgTable("profile", {
   notifyEmail: boolean("notifyEmail").notNull().default(true),
   pushSubscriptions: jsonb("pushSubscriptions").$type<PushSub[]>().notNull().default([]),
   onboarded: boolean("onboarded").notNull().default(false),
+  seenUpdate: text("seenUpdate"), // id of the last "what's new" pop-up this user dismissed
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 
@@ -87,7 +90,7 @@ export const templates = pgTable("template", {
 
 export type DayType = "practice" | "mock" | "rest";
 /** One weekday slot in a phase's weekly pattern. */
-export type WeekSlot = { type: DayType; targets: Targets };
+export type WeekSlot = { type: DayType; targets: Targets; sectionals?: Sectionals | null };
 /** A user-defined phase: runs from the day after the previous phase's `until` through `until` (inclusive). `week` is Mon..Sun. */
 export type PhaseDef = { name: string; until: string; week: WeekSlot[] };
 
@@ -105,6 +108,7 @@ export const dayPlans = pgTable(
     note: text("note"),
     tag: text("tag"),
     phase: text("phase"), // phase name from the template that generated this day
+    sectionals: jsonb("sectionals").$type<Sectionals>(), // null = none planned
   },
   (t) => [uniqueIndex("day_plan_user_date").on(t.userId, t.date)],
 );
@@ -136,6 +140,22 @@ export const mockResults = pgTable("mock_result", {
   sectionNotes: jsonb("sectionNotes").$type<Partial<Record<keyof Targets, string>>>(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
+
+// Sectional tests (one section at a time). Kept apart from mock_result so full-mock stats stay clean.
+export const sectionalResults = pgTable(
+  "sectional_result",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    section: text("section").$type<"varc" | "dilr" | "qa">().notNull(),
+    name: text("name").notNull(),
+    score: real("score").notNull(),
+    note: text("note"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => [index("sectional_user_date").on(t.userId, t.date)],
+);
 
 export const aiCache = pgTable(
   "ai_cache",

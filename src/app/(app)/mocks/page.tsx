@@ -1,9 +1,10 @@
 import { and, asc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { dayPlans, mockResults } from "@/db/schema";
+import { dayPlans, mockResults, sectionalResults } from "@/db/schema";
 import { requireProfile } from "@/lib/data";
 import { fmtDate, istNow, SECTION_META } from "@/lib/cat";
-import { MockForm, MockChart, DeleteMock } from "./client";
+import { MockChart, DeleteMock } from "./client";
+import { LogCard, SectionalsCard } from "./sectionals";
 import Link from "next/link";
 import { targetBand } from "@/lib/cat-history";
 
@@ -11,9 +12,10 @@ export default async function MocksPage() {
   const { user, profile } = await requireProfile();
   const band = targetBand(profile.targetPercentile);
   const today = istNow().date;
-  const [mocks, upcoming] = await Promise.all([
+  const [mocks, upcoming, sectionals] = await Promise.all([
     db.select().from(mockResults).where(eq(mockResults.userId, user.id)).orderBy(asc(mockResults.date)),
     db.select().from(dayPlans).where(and(eq(dayPlans.userId, user.id), eq(dayPlans.type, "mock"), gte(dayPlans.date, today))).orderBy(asc(dayPlans.date)),
+    db.select().from(sectionalResults).where(eq(sectionalResults.userId, user.id)).orderBy(asc(sectionalResults.date), asc(sectionalResults.id)),
   ]);
   const suggestedName = upcoming[0]?.date === today ? upcoming[0].mockName ?? "" : "";
 
@@ -38,10 +40,11 @@ export default async function MocksPage() {
           )}
         </div>
         <div className="card p-5">
-          <span className="label">Log a mock</span>
-          <MockForm today={today} suggestedName={suggestedName} />
+          <LogCard today={today} suggestedName={suggestedName} />
         </div>
       </div>
+
+      {sectionals.length > 0 && <SectionalsCard items={sectionals.map(({ id, date, section, name, score, note }) => ({ id, date, section, name, score, note }))} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card lg:col-span-2 overflow-hidden">

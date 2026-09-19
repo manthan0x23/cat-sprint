@@ -1,21 +1,24 @@
 "use client";
 import { useOptimistic, useState, useTransition } from "react";
 import clsx from "clsx";
+import Link from "next/link";
 import { Check, Coffee, Minus, Plus, Undo2 } from "lucide-react";
-import type { Targets } from "@/db/schema";
+import type { Sectionals, Targets } from "@/db/schema";
 import { SECTIONS, SECTION_META, unitMinutes, type Section } from "@/lib/cat";
 import { minutesToH } from "@/lib/progress";
 import { logProgress, toggleMockFlag, undoLastLog } from "@/app/actions";
 
 type Plan = {
   date: string; type: "practice" | "mock" | "rest"; targets: Targets; mockName: string | null;
-  mockDone: boolean; analysisDone: boolean; note: string | null; tag?: string | null;
+  mockDone: boolean; analysisDone: boolean; note: string | null; tag?: string | null; sectionals?: Sectionals | null;
 } | null;
+
+const SECTIONAL_LABEL = { varc: "VARC", dilr: "DILR", qa: "QA" } as const;
 
 const MOCK_MIN = 120;
 const ANALYSIS_MIN = 150;
 
-export function TodayCard({ plan, done, today }: { plan: Plan; done: Targets; today: string }) {
+export function TodayCard({ plan, done, today, sectionalsDone }: { plan: Plan; done: Targets; today: string; sectionalsDone: Sectionals }) {
   const [, start] = useTransition();
   const [counts, add] = useOptimistic(done, (cur, { s, n }: { s: Section; n: number }) => ({ ...cur, [s]: Math.max(0, cur[s] + n) }));
   const [flags, setFlag] = useOptimistic(
@@ -110,6 +113,25 @@ export function TodayCard({ plan, done, today }: { plan: Plan; done: Targets; to
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Planned sectionals: ticked by logging one on the Mocks page (not part of the hours model) */}
+      {!rest && plan?.sectionals && (
+        <div className="px-5 md:px-6 pb-4 flex flex-wrap items-center gap-1.5">
+          <span className="label mr-1">Sectionals</span>
+          {(Object.keys(SECTIONAL_LABEL) as (keyof Sectionals)[]).filter((k) => plan.sectionals![k] > 0).map((k) => {
+            const want = plan.sectionals![k], got = Math.min(want, sectionalsDone[k]);
+            const ok = got >= want;
+            return (
+              <span key={k} className={clsx("chip num", ok && "!bg-good-soft !border-good/30 !text-good")}>
+                {ok && <Check size={12} />}{SECTIONAL_LABEL[k]} {want > 1 ? `${got}/${want}` : ""}
+              </span>
+            );
+          })}
+          {(Object.keys(SECTIONAL_LABEL) as (keyof Sectionals)[]).some((k) => sectionalsDone[k] < plan.sectionals![k]) && (
+            <Link href="/mocks" className="text-[12.5px] text-accent hover:underline ml-1">Log a sectional →</Link>
+          )}
         </div>
       )}
 

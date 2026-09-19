@@ -1,8 +1,10 @@
 "use client";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import clsx from "clsx";
-import { BellRing, Check, Globe, Users } from "lucide-react";
-import { setVisibility } from "@/app/actions";
+import Link from "next/link";
+import { BellRing, CalendarRange, Check, Gauge, Globe, Sparkles, Users } from "lucide-react";
+import { dismissWhatsNew, setVisibility } from "@/app/actions";
+import { WHATS_NEW } from "@/lib/whats-new";
 import { pushSupported, subscribeThisDevice } from "@/lib/push-client";
 
 type Visibility = "friends" | "public";
@@ -121,6 +123,45 @@ export function NotificationPrompt() {
         <button className="btn btn-ghost flex-1 h-10" onClick={dismiss} disabled={pending}>Ignore</button>
         <button className="btn btn-accent flex-1 h-10" onClick={allow} disabled={pending}>{pending ? "Allowing…" : "Allow"}</button>
       </div>
+    </Dialog>
+  );
+}
+
+const ITEM_ICON = { plan: CalendarRange, sectional: Gauge } as const;
+
+// Once per announcement for existing users. Closing it or following a link marks it seen.
+export function WhatsNewPrompt() {
+  const [closed, setClosed] = useState(false);
+  if (closed) return null;
+  const close = () => {
+    setClosed(true);
+    dismissWhatsNew(WHATS_NEW.id).catch(() => {});
+  };
+  return (
+    <Dialog label="What's new">
+      <div className="flex items-center gap-2 text-accent">
+        <Sparkles size={15} />
+        <span className="label !text-accent">What&apos;s new</span>
+      </div>
+      <h2 className="mt-1.5 text-[19px] font-semibold tracking-tight">{WHATS_NEW.title}</h2>
+      <ul className="mt-4 space-y-2">
+        {WHATS_NEW.items.map((it) => {
+          const Icon = ITEM_ICON[it.icon];
+          return (
+            <li key={it.title}>
+              <Link href={it.href} onClick={close} className="flex items-start gap-3 rounded-xl border border-line p-3.5 hover:border-line-2 hover:bg-panel-2 transition-colors">
+                <span className="size-9 shrink-0 rounded-full bg-accent-soft text-accent grid place-items-center"><Icon size={17} /></span>
+                <span className="min-w-0">
+                  <span className="block font-medium text-[14px]">{it.title}</span>
+                  <span className="block text-[13px] text-muted mt-0.5">{it.body}</span>
+                  <span className="block text-[12.5px] text-accent mt-1.5">{it.cta} →</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <button className="btn btn-primary w-full mt-4 h-10" onClick={close}>Got it</button>
     </Dialog>
   );
 }
