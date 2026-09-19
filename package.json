@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/migrate.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx scripts/migrate.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

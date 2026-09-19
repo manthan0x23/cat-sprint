@@ -189,3 +189,9 @@ export const weeklyGoals = pgTable(
   },
   (t) => [uniqueIndex("weekly_goal_user_week").on(t.userId, t.weekStart)],
 );
+
+// Written by scripts/migrate.ts; declared here so `drizzle-kit push` doesn't drop it.
+export const migrations = pgTable("_migrations", {
+  name: text("name").primaryKey(),
+  appliedAt: timestamp("appliedAt", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -6,10 +6,16 @@ CAT 2026 planner (exam: **Sun 29 Nov 2026**). Next.js 16 · Drizzle · Neon · A
 ```bash
 cp .env.example .env.local   # DATABASE_URL=pglite:./.pglite works with zero setup
 npx drizzle-kit push         # create tables
+npm run db:migrate           # mark migrations/ as applied
 npm run dev                  # DEV_LOGIN=1 adds a local-only login; POST /api/dev/seed fills demo data
 npm test
 ```
-PGlite is single-process: stop `npm run dev` before running `drizzle-kit push`. If it ever corrupts: `rm -rf .pglite && npx drizzle-kit push`.
+PGlite is single-process: stop `npm run dev` (Ctrl+C, not kill -9) before running `drizzle-kit push` or `db:migrate`. If it ever corrupts: `rm -rf .pglite && npx drizzle-kit push`.
+
+## Schema changes
+Edit `src/db/schema.ts`, then add `migrations/NNNN_name.sql` with the matching SQL (split statements with
+`--> statement-breakpoint`; prefer `IF EXISTS`/`IF NOT EXISTS`). `npm run build` runs `scripts/migrate.ts` first,
+which applies new files once each and records them in `_migrations`. On Vercel it only runs for production builds.
 
 ## Deploy (Vercel)
 1. Push to GitHub → import in Vercel.
