@@ -35,7 +35,7 @@ export async function seedDemo(email: string) {
       }
       if (d.type === "mock") {
         m++;
-        await db.insert(S.mockResults).values({ userId, date: d.date, name: d.mockName ?? `Mock ${m}`, percentile: Math.min(99.5, +(mockBase + m * 1.6 + (rnd() - 0.5) * 3).toFixed(2)), score: +(60 + m * 4).toFixed(0), varc: 24 + m, dilr: 18 + m, qa: 20 + m });
+        await db.insert(S.mockResults).values({ userId, date: d.date, name: d.mockName ?? `Mock ${m}`, ...(() => { const v = Math.round(mockBase * 0.35 + m * 1.5 + (rnd() - 0.5) * 6), d = Math.round(mockBase * 0.25 + m + (rnd() - 0.5) * 6), q = Math.round(mockBase * 0.3 + m + (rnd() - 0.5) * 6); return { varc: v, dilr: d, qa: q, score: v + d + q }; })() });
       }
     }
     // today: partial progress

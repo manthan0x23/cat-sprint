@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generatePlan } from "../plan-generator";
 import { SYSTEM_TEMPLATES } from "../templates";
-import { computeStats, projectPercentile, skipImpact, plannedMinutes, expectedFraction } from "../progress";
+import { computeStats, projectScore, skipImpact, plannedMinutes, expectedFraction } from "../progress";
 import { istNow, daysToExam, weekday, unitMinutes } from "../cat";
 
 const manthan = SYSTEM_TEMPLATES[0];
@@ -99,17 +99,17 @@ describe("computeStats", () => {
 
 describe("projection", () => {
   const mocks = [
-    { date: "2026-09-06", percentile: 80 },
-    { date: "2026-09-13", percentile: 83.5 },
+    { date: "2026-09-06", score: 80 },
+    { date: "2026-09-13", score: 94 },
   ];
-  it("needs 2 mocks", () => expect(projectPercentile(mocks.slice(0, 1), "2026-09-18", 1)).toBeNull());
+  it("needs 2 mocks", () => expect(projectScore(mocks.slice(0, 1), "2026-09-18", 1)).toBeNull());
   it("consistency scales the improvement rate", () => {
-    const full = projectPercentile(mocks, "2026-09-18", 1)!;
-    const half = projectPercentile(mocks, "2026-09-18", 0.5)!;
-    expect(full.rate).toBe(-0.015); // capped
-    expect(full.projected).toBeGreaterThan(half.projected);
-    expect(full.projected).toBeGreaterThan(90);
-    expect(full.projected).toBeLessThan(97);
+    const full = projectScore(mocks, "2026-09-18", 1)!;
+    const half = projectScore(mocks, "2026-09-18", 0.5)!;
+    expect(full.rate).toBe(1); // 2/day, capped
+    expect(full.base).toBe(95.5); // capped line through the mean (87 @ 8.5 days ago)
+    expect(full.projected).toBe(95.5 + 72); // 72 days to 29 Nov
+    expect(half.projected).toBe(95.5 + 36);
   });
   it("skipping today lowers projection", () => {
     const t = { qa: 50, rc: 10, va: 15, dilr: 5 };
@@ -118,8 +118,8 @@ describe("projection", () => {
       plans, doneByDate: { "2026-09-15": t, "2026-09-16": t, "2026-09-17": t },
       today: "2026-09-18", hour: 15, window: { start: 7, end: 23 }, exam: "2026-11-29",
     });
-    const imp = skipImpact(s, [{ date: "2026-09-01", percentile: 70 }, { date: "2026-09-15", percentile: 75 }], "2026-09-18");
-    expect(imp.percentileIfSkip!).toBeLessThan(imp.percentileIfDone!);
+    const imp = skipImpact(s, [{ date: "2026-09-01", score: 70 }, { date: "2026-09-15", score: 75 }], "2026-09-18");
+    expect(imp.scoreIfSkip!).toBeLessThan(imp.scoreIfDone!);
   });
 });
 

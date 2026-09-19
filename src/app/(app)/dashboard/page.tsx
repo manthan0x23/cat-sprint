@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Flame, Target, TrendingUp } from "lucide-react";
 import { requireProfile, loadUserState, type UserState } from "@/lib/data";
 import { daysToExam, fmtDate, fmtHour } from "@/lib/cat";
-import { minutesToH } from "@/lib/progress";
+import { MAX_SCORE, minutesToH } from "@/lib/progress";
 import { TodayCard } from "@/components/dash/today-card";
 import { PaceChart } from "@/components/dash/pace-chart";
 import { Heatmap } from "@/components/dash/heatmap";
@@ -118,11 +118,12 @@ function Hero({ s, left }: { s: UserState; left: number }) {
 function GoalCard({ s }: { s: UserState }) {
   const target = s.profile.targetPercentile;
   const p = s.projection;
-  const gap = p ? target - p.projected : null;
+  const gain = p ? p.projected - p.base : null;
+  const need = Math.max(1, 2 - s.mocks.filter((m) => m.score != null).length);
   return (
     <div className="card p-5 flex flex-col">
       <div className="flex items-center justify-between">
-        <span className="label inline-flex items-center gap-1.5"><Target size={12} /> Goal</span>
+        <span className="label inline-flex items-center gap-1.5"><Target size={12} /> Goal · {target} %ile</span>
         {s.profile.dreamColleges.length > 0 && <span className="text-[12px] text-muted truncate max-w-[60%]">{s.profile.dreamColleges.join(" · ")}</span>}
       </div>
       <div className="mt-2 text-[12.5px] text-muted num">
@@ -130,35 +131,35 @@ function GoalCard({ s }: { s: UserState }) {
       </div>
       <div className="mt-4 flex items-end gap-6">
         <div>
-          <div className="text-[12px] text-muted">Target</div>
-          <div className="num text-[34px] leading-none font-medium mt-1">{target}</div>
+          <div className="text-[12px] text-muted">Mock score now</div>
+          <div className="num text-[34px] leading-none font-medium mt-1">{p ? p.base.toFixed(0) : "—"}</div>
         </div>
         <div>
           <div className="text-[12px] text-muted">Projected on CAT day</div>
-          <div className={clsx("num text-[34px] leading-none font-medium mt-1", p ? (gap! <= 0 ? "text-good" : gap! < 3 ? "text-warn" : "text-bad") : "text-muted")}>
-            {p ? p.projected.toFixed(1) : "—"}
+          <div className={clsx("num text-[34px] leading-none font-medium mt-1", p ? (p.rate > 0 ? "text-good" : p.rate === 0 ? "text-warn" : "text-bad") : "text-muted")}>
+            {p ? p.projected.toFixed(0) : "—"}
           </div>
         </div>
       </div>
       {p ? (
         <>
-          <Scale target={target} base={p.base} projected={p.projected} />
+          <Scale base={p.base} projected={p.projected} />
           <p className="mt-3 text-[13px] text-ink-2 leading-relaxed">
-            {gap! <= 0
-              ? <>On course to clear your target if you keep this consistency.</>
-              : <>Short by <b className="num">{gap!.toFixed(1)}</b> %ile. At full consistency you&apos;d gain ~<span className="num">{(p.perWeekNow / Math.max(0.05, s.stats.consistency)).toFixed(1)}</span> %ile/week instead of <span className="num">{p.perWeekNow.toFixed(1)}</span>.</>}
+            {p.rate <= 0
+              ? <>Your mock scores aren&apos;t rising yet. Mock analysis is where the next marks come from.</>
+              : <>Trending <b className="num">+{gain!.toFixed(0)}</b> marks by CAT. At full consistency you&apos;d gain ~<span className="num">{(p.rate * 7).toFixed(1)}</span> marks/week instead of <span className="num">{p.perWeekNow.toFixed(1)}</span>.</>}
           </p>
           <details className="mt-auto pt-3 text-[11.5px] text-muted">
             <summary className="cursor-pointer hover:text-ink">How is this projected?</summary>
             <p className="mt-1.5 leading-relaxed">
-              Fits the trend of your {p.mocks} mock percentiles (the gap to 100 shrinking by a steady % per day, since gains get harder near the top), then scales
-              that improvement rate by your 14-day consistency ({Math.round(s.stats.consistency * 100)}%). The rate is capped so one lucky mock can&apos;t dominate. It&apos;s a rough estimate, not a prediction.
+              Fits a straight line through your {p.mocks} mock scores, then scales that improvement rate by your 14-day consistency ({Math.round(s.stats.consistency * 100)}%).
+              The rate is capped at ±1 mark/day so one lucky mock can&apos;t dominate. Mock percentiles are ignored: they depend on who else took that test series. It&apos;s a rough estimate, not a prediction.
             </p>
           </details>
         </>
       ) : (
         <div className="mt-4 rounded-xl border border-dashed border-line-2 p-3 text-[13px] text-muted">
-          Log <b className="text-ink">{2 - s.mocks.length}</b> more mock{2 - s.mocks.length === 1 ? "" : "s"} to unlock your percentile projection.{" "}
+          Log <b className="text-ink">{need}</b> more mock score{need === 1 ? "" : "s"} to unlock your score projection.{" "}
           <Link href="/mocks" className="text-accent hover:underline">Log a mock →</Link>
           {s.nextMock && <div className="mt-1">Next planned: {s.nextMock.mockName} on {fmtDate(s.nextMock.date, { weekday: "short", day: "numeric", month: "short" })}.</div>}
         </div>
@@ -167,18 +168,18 @@ function GoalCard({ s }: { s: UserState }) {
   );
 }
 
-function Scale({ target, base, projected }: { target: number; base: number; projected: number }) {
-  const lo = Math.max(0, Math.floor(Math.min(base, target, projected) / 5) * 5 - 5);
-  const x = (v: number) => `${((v - lo) / (100 - lo)) * 100}%`;
+function Scale({ base, projected }: { base: number; projected: number }) {
+  const lo = Math.max(0, Math.floor(Math.min(base, projected) / 20) * 20 - 20);
+  const hi = Math.min(MAX_SCORE, Math.ceil(Math.max(base, projected) / 20) * 20 + 20);
+  const x = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
   return (
     <div className="mt-5">
       <div className="relative h-2 rounded-full bg-line">
         <div className="absolute inset-y-0 rounded-full bg-[var(--s-done)]/35" style={{ left: x(Math.min(base, projected)), width: `calc(${x(Math.max(base, projected))} - ${x(Math.min(base, projected))})` }} />
         <Dot at={x(base)} className="bg-panel border-2 border-[var(--s-done)]" label={`now ${base.toFixed(0)}`} />
-        <Dot at={x(projected)} className="bg-[var(--s-done)] border-2 border-panel" label="" />
-        <div className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-ink" style={{ left: x(target) }} />
+        <Dot at={x(projected)} className="bg-[var(--s-done)] border-2 border-panel" label={`CAT day ${projected.toFixed(0)}`} />
       </div>
-      <div className="mt-2 flex justify-between text-[10.5px] text-muted num"><span>{lo}</span><span>target {target}</span><span>100</span></div>
+      <div className="mt-2 flex justify-between text-[10.5px] text-muted num"><span>{lo}</span><span>marks</span><span>{hi}</span></div>
     </div>
   );
 }
@@ -190,11 +191,11 @@ function CostOfToday({ s }: { s: UserState }) {
   const i = s.impact;
   const planned = s.stats.today.planned;
   if (!planned) return null;
-  const hasP = i.percentileIfDone != null && i.percentileIfSkip != null;
+  const hasP = i.scoreIfDone != null && i.scoreIfSkip != null;
   // Consistency needs some history; on day 1 it would swing 100% ↔ 0% and mean nothing.
   const pastDays = s.stats.history.filter((h) => h.date < s.today && h.planned > 0).length;
   const rows = [
-    hasP && { k: "Projected CAT %ile", done: i.percentileIfDone!.toFixed(1), skip: i.percentileIfSkip!.toFixed(1), delta: (i.percentileIfSkip! - i.percentileIfDone!).toFixed(2) },
+    hasP && { k: "Projected mock score", done: i.scoreIfDone!.toFixed(1), skip: i.scoreIfSkip!.toFixed(1), delta: (i.scoreIfSkip! - i.scoreIfDone!).toFixed(1) },
     pastDays >= 3 && { k: "14-day consistency", done: `${Math.round(i.consistencyIfDone * 100)}%`, skip: `${Math.round(i.consistencyIfSkip * 100)}%`, delta: `${Math.round((i.consistencyIfSkip - i.consistencyIfDone) * 100)} pts` },
     { k: "Backlog to carry", done: minutesToH(s.stats.debtMinutes), skip: minutesToH(s.stats.debtMinutes + i.debtAddedMinutes), delta: `+${minutesToH(i.debtAddedMinutes)}` },
     { k: "Extra study per day till CAT", done: `${Math.round(s.stats.extraPerDay)} min`, skip: `${Math.round(i.extraPerDayIfSkip)} min`, delta: `+${Math.round(i.extraPerDayIfSkip - s.stats.extraPerDay)} min` },
@@ -232,7 +233,7 @@ function CostOfToday({ s }: { s: UserState }) {
       </div>
       {!hasP && (
         <div className="px-5 py-3 border-t border-line text-[12.5px] text-muted inline-flex items-center gap-1.5 w-full">
-          <TrendingUp size={13} /> Log 2 mocks and this will also show the percentile you give up by skipping.
+          <TrendingUp size={13} /> Log 2 mock scores and this will also show the marks you give up by skipping.
         </div>
       )}
     </div>

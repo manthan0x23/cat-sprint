@@ -119,11 +119,11 @@ export const mockResults = pgTable("mock_result", {
   date: date("date", { mode: "string" }).notNull(),
   name: text("name").notNull(),
   score: real("score"),
-  percentile: real("percentile").notNull(),
   varc: real("varc"),
   dilr: real("dilr"),
   qa: real("qa"),
   learnings: text("learnings"),
+  sectionNotes: jsonb("sectionNotes").$type<Partial<Record<keyof Targets, string>>>(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 

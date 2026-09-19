@@ -99,6 +99,12 @@ export const TITLES: Record<Situation, (s: UserState) => string> = {
 };
 
 // ---------- Facts for the model ----------
+function lastMockLine(m: UserState["mocks"][number]) {
+  const secs = m.varc != null || m.dilr != null || m.qa != null ? ` (VARC ${m.varc ?? "?"}, DILR ${m.dilr ?? "?"}, QA ${m.qa ?? "?"})` : "";
+  const notes = Object.entries(m.sectionNotes ?? {}).map(([k, v]) => `${SECTION_META[k as keyof typeof SECTION_META]?.short ?? k}: "${v}"`).join("; ");
+  return `${m.name}, score ${m.score ?? "?"}${secs}.${notes ? ` Their notes: ${notes}.` : ""}`;
+}
+
 export function facts(s: UserState, ctx?: CoachContext) {
   const t = s.todayPlan;
   const y = yesterdayRow(s);
@@ -116,9 +122,9 @@ export function facts(s: UserState, ctx?: CoachContext) {
     ctx ? `Nudges ignored yesterday: ${ignoredYesterday(s, ctx)}.` : "",
     `14-day consistency ${Math.round(s.stats.consistency * 100)}%. Streak ${s.stats.streak} days. Backlog ${minutesToH(s.stats.debtMinutes)} (= +${Math.round(s.stats.extraPerDay)} min/day until CAT).`,
     s.projection
-      ? `Projected CAT %ile at current consistency: ${s.projection.projected.toFixed(1)}. Finishing today → ${s.impact.percentileIfDone?.toFixed(1)}; skipping → ${s.impact.percentileIfSkip?.toFixed(1)}.`
-      : `No percentile projection yet (fewer than 2 mocks).`,
-    s.mocks.length ? `Last mock: ${s.mocks.at(-1)!.name}, ${s.mocks.at(-1)!.percentile} %ile.` : "",
+      ? `Mock score now ~${s.projection.base.toFixed(0)}; projected on CAT day at current consistency: ${s.projection.projected.toFixed(0)}. Finishing today → ${s.impact.scoreIfDone?.toFixed(1)}; skipping → ${s.impact.scoreIfSkip?.toFixed(1)}.`
+      : `No score projection yet (fewer than 2 mock scores).`,
+    s.mocks.length ? `Last mock: ${lastMockLine(s.mocks.at(-1)!)}` : "",
     `Mocks taken so far: ${s.mocksTaken}; ${s.mocksPlannedLeft} planned before CAT.`,
     s.week.goal
       ? `Locked weekly goal (${s.week.daysLeft} days left in the week): ${Math.round((s.week.pct ?? 0) * 100)}% done. Remaining per day to hit it: ${SECTIONS.filter((k) => (s.week.perDayNeeded?.[k] ?? 0) > 0).map((k) => unitLabel(k, s.week.perDayNeeded![k])).join(", ") || "nothing, goal met"}.`
@@ -176,8 +182,8 @@ export function fallback(s: UserState, sit: Situation, ctx?: CoachContext): stri
   const left = daysToExam(s.today);
   const y = yesterdayRow(s);
   const ign = ctx ? ignoredYesterday(s, ctx) : 0;
-  const cost = s.impact.percentileIfSkip != null && s.impact.percentileIfDone != null
-    ? `Skipping lowers your projection from ${s.impact.percentileIfDone.toFixed(1)} to ${s.impact.percentileIfSkip.toFixed(1)} percentile.`
+  const cost = s.impact.scoreIfSkip != null && s.impact.scoreIfDone != null
+    ? `Skipping lowers your projected mock score from ${s.impact.scoreIfDone.toFixed(1)} to ${s.impact.scoreIfSkip.toFixed(1)}.`
     : `Skipping adds ${minutesToH(rem.minutes)} to your backlog.`;
   const friend = ctx?.friendsDoneToday[0];
   const key = s.today + sit;

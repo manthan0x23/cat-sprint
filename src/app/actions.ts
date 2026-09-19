@@ -216,18 +216,24 @@ export async function deleteCustomTemplate(id: string) {
 // ---------- Mocks ----------
 export async function addMockResult(formData: FormData) {
   const userId = await uid();
-  const num = z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.number().nullable());
+  const num = z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.number().min(-100).max(300).nullable());
+  const note = z.string().trim().max(2000).optional().transform((v) => v || undefined);
   const data = z.object({
     date: dateSchema,
     name: z.string().min(1).max(80),
-    percentile: z.coerce.number().min(0).max(100),
-    score: num,
+    score: z.coerce.number().min(-100).max(300),
     varc: num,
     dilr: num,
     qa: num,
     learnings: z.string().max(2000).optional(),
+    note_qa: note,
+    note_dilr: note,
+    note_va: note,
+    note_rc: note,
   }).parse(Object.fromEntries(formData));
-  await db.insert(mockResults).values({ ...data, userId });
+  const { note_qa: qa, note_dilr: dilr, note_va: va, note_rc: rc, ...row } = data;
+  const sectionNotes = Object.fromEntries(Object.entries({ qa, dilr, va, rc }).filter(([, v]) => v));
+  await db.insert(mockResults).values({ ...row, sectionNotes: Object.keys(sectionNotes).length ? sectionNotes : null, userId });
   await db.update(dayPlans).set({ mockDone: true })
     .where(and(eq(dayPlans.userId, userId), eq(dayPlans.date, data.date), eq(dayPlans.type, "mock")));
   refresh();

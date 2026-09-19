@@ -71,7 +71,7 @@ export default async function FriendsPage() {
                   </div>
                   <span className="chip num hidden sm:inline-flex" title="Mocks taken">
                     <LineChart size={12} className="text-accent" />{r.s!.mocksTaken} mock{r.s!.mocksTaken === 1 ? "" : "s"}
-                    {r.s!.lastMockPct != null && <span className="text-muted">· last {r.s!.lastMockPct}</span>}
+                    {r.s!.lastMockScore != null && <span className="text-muted">· last {r.s!.lastMockScore}</span>}
                   </span>
                   <span className="chip num hidden sm:inline-flex" title="Streak"><Flame size={12} className={r.s!.streak ? "text-warn" : "text-muted"} />{r.s!.streak}</span>
                   {!r.me && <NudgeButton userId={r.id} />}

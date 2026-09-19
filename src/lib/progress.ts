@@ -11,7 +11,7 @@ export type PlanDay = {
   analysisDone?: boolean;
 };
 
-export type MockPoint = { date: string; percentile: number };
+export type MockPoint = { date: string; score: number };
 
 /** Realistic minutes for a set of counts on a given date (see time model in cat.ts). */
 export function effort(t: Targets, date: string) {
@@ -155,45 +155,44 @@ export function computeStats(input: {
   };
 }
 
-// ---------- Percentile projection ----------
+// ---------- Mock score projection ----------
+// Mock percentiles depend on who else took that test series, so we only trust raw scores.
 // Deliberately simple and explainable:
-//   1. Look at your "gap to 100" in each mock (80 %ile -> gap 20). Gains get harder near
-//      the top, so we model the gap shrinking by a fixed % per day (fit a line to ln(gap)).
-//   2. That shrink rate is scaled by your consistency: practice is what turns the trend
+//   1. Fit a straight line to your total mock scores over time (marks gained per day).
+//   2. That improvement rate is scaled by your consistency: practice is what turns the trend
 //      into reality. A worsening trend is not softened.
-//   3. The rate is capped (gap can at most halve every ~46 days) so one lucky mock
-//      can't dominate. Result is clamped to [0, 99.9].
+//   3. The rate is capped (±1 mark/day) so one lucky mock can't dominate.
+//      Result is clamped to [0, MAX_SCORE].
 export type Projection = {
   projected: number;
-  base: number; // fitted percentile today
-  rate: number; // raw daily change in ln(gap) (negative = improving)
+  base: number; // fitted score today
+  rate: number; // raw marks per day (positive = improving)
   effectiveRate: number;
-  perWeekNow: number; // %ile gained per week at today's level and effective rate
+  perWeekNow: number; // marks gained per week at the effective rate
   mocks: number;
 };
 
-const MAX_IMPROVE_RATE = -0.015;
-const MAX_DECLINE_RATE = 0.015;
+export const MAX_SCORE = 204; // 68 questions × 3 marks (CAT 2024–25 pattern)
+const MAX_IMPROVE_RATE = 1;
+const MAX_DECLINE_RATE = -1;
 
-export function projectPercentile(mocks: MockPoint[], today: string, consistency: number, exam = EXAM_DATE): Projection | null {
+export function projectScore(mocks: MockPoint[], today: string, consistency: number, exam = EXAM_DATE): Projection | null {
   if (mocks.length < 2) return null;
   const xs = mocks.map((m) => diffDays(m.date, today));
-  const ys = mocks.map((m) => Math.log(Math.max(0.1, 100 - Math.min(99.9, m.percentile))));
+  const ys = mocks.map((m) => m.score);
   const n = xs.length;
   const mx = xs.reduce((a, b) => a + b, 0) / n;
   const my = ys.reduce((a, b) => a + b, 0) / n;
   const sxx = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
   const sxy = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
   let rate = sxx === 0 ? 0 : sxy / sxx;
-  rate = Math.max(MAX_IMPROVE_RATE, Math.min(MAX_DECLINE_RATE, rate));
-  const gapToday = Math.exp(my - rate * mx);
-  const base = Math.max(0, Math.min(99.9, 100 - gapToday));
+  rate = Math.max(MAX_DECLINE_RATE, Math.min(MAX_IMPROVE_RATE, rate));
+  const base = Math.max(0, Math.min(MAX_SCORE, my - rate * mx));
   const c = Math.max(0, Math.min(1.2, consistency));
-  const effectiveRate = rate < 0 ? rate * c : rate;
+  const effectiveRate = rate > 0 ? rate * c : rate;
   const daysLeft = Math.max(0, diffDays(exam, today));
-  const projected = Math.max(0, Math.min(99.9, 100 - gapToday * Math.exp(effectiveRate * daysLeft)));
-  const perWeekNow = gapToday * (1 - Math.exp(effectiveRate * 7));
-  return { projected, base, rate, effectiveRate, perWeekNow, mocks: n };
+  const projected = Math.max(0, Math.min(MAX_SCORE, base + effectiveRate * daysLeft));
+  return { projected, base, rate, effectiveRate, perWeekNow: effectiveRate * 7, mocks: n };
 }
 
 /** What skipping today does to consistency and to the projection. */
@@ -204,13 +203,13 @@ export function skipImpact(stats: Stats, mocks: MockPoint[], today: string) {
   const tp = stats.today.planned;
   const ifDone = basePlanned + tp ? Math.min(1.2, (baseDone + tp) / (basePlanned + tp)) : 1;
   const ifSkip = basePlanned + tp ? Math.min(1.2, baseDone / (basePlanned + tp)) : 1;
-  const pDone = projectPercentile(mocks, today, ifDone);
-  const pSkip = projectPercentile(mocks, today, ifSkip);
+  const pDone = projectScore(mocks, today, ifDone);
+  const pSkip = projectScore(mocks, today, ifSkip);
   return {
     consistencyIfDone: ifDone,
     consistencyIfSkip: ifSkip,
-    percentileIfDone: pDone?.projected ?? null,
-    percentileIfSkip: pSkip?.projected ?? null,
+    scoreIfDone: pDone?.projected ?? null,
+    scoreIfSkip: pSkip?.projected ?? null,
     debtAddedMinutes: Math.max(0, tp - stats.today.done),
     extraPerDayIfSkip: stats.remainingDays > 1 ? (stats.debtMinutes + Math.max(0, tp - stats.today.done)) / (stats.remainingDays - 1) : 0,
   };

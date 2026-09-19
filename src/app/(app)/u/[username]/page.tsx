@@ -56,7 +56,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
             <Tile k="Streak" v={`${s.streak}d`} icon={<Flame size={13} className={s.streak ? "text-warn" : "text-muted"} />} />
             <Tile k="Mocks taken" v={String(s.mocksTaken)} sub={`${s.mocksPlannedLeft} planned before CAT`} />
             <Tile k="14-day consistency" v={`${Math.round(s.consistency * 100)}%`} />
-            <Tile k="Projected %ile" v={s.projected != null ? s.projected.toFixed(1) : "—"} sub={s.projected == null ? (s.mocks ? "needs 2 mocks" : "hidden") : `target ${s.target}`} />
+            <Tile k="Projected score" v={s.projected != null ? s.projected.toFixed(0) : "—"} sub={s.projected == null ? (s.mocks ? "needs 2 mocks" : "hidden") : `target ${s.target} %ile`} />
           </div>
           <div className="grid gap-4 md:grid-cols-5">
             <div className="card p-5 md:col-span-2">
@@ -71,7 +71,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
               {s.mocks == null ? (
                 <p className="mt-4 text-sm text-muted">@{u} keeps mock scores private.</p>
               ) : s.mocks.length ? (
-                <div className="mt-4"><MockChart data={s.mocks.map((m) => ({ ...m, varc: null, dilr: null, qa: null }))} target={s.target} /></div>
+                <div className="mt-4"><MockChart data={s.mocks.map((m) => ({ ...m, varc: null, dilr: null, qa: null }))} /></div>
               ) : <p className="mt-4 text-sm text-muted">No mocks logged yet.</p>}
             </div>
           </div>

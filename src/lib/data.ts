@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { dayPlans, mockResults, profiles, progressLogs, users, weeklyGoals } from "@/db/schema";
 import { addDays, istNow, weekStartOf } from "./cat";
 import { weekStatus } from "./week";
-import { computeStats, projectPercentile, skipImpact, sumLogs } from "./progress";
+import { computeStats, projectScore, skipImpact, sumLogs } from "./progress";
 
 export async function requireUser() {
   const session = await auth();
@@ -44,8 +44,8 @@ export async function loadUserState(userId: string, now = new Date()) {
     hour,
     window: { start: profile.studyStartHour, end: profile.studyEndHour },
   });
-  const mockPoints = mocks.map((m) => ({ date: m.date, percentile: m.percentile }));
-  const projection = projectPercentile(mockPoints, today, stats.consistency);
+  const mockPoints = mocks.flatMap((m) => (m.score == null ? [] : [{ date: m.date, score: m.score }]));
+  const projection = projectScore(mockPoints, today, stats.consistency);
   const impact = skipImpact(stats, mockPoints, today);
   const todayPlan = plans.find((p) => p.date === today) ?? null;
   const tomorrowPlan = plans.find((p) => p.date === addDays(today, 1)) ?? null;

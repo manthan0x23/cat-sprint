@@ -40,6 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.pglite
+.pglite*
 cron-worker/node_modules
 cron-worker/.wrangler
