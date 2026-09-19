@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { ArrowRight, BellRing, Brain, CalendarRange, TrendingUp } from "lucide-react";
 import { auth, devLoginEnabled } from "@/auth";
 import { Logo } from "@/components/logo";
@@ -61,6 +62,10 @@ export default async function Landing() {
           </div>
         ))}
       </section>
+      <footer className="mx-auto max-w-5xl px-4 pb-10 flex justify-center gap-5 text-[13px] text-muted">
+        <Link href="/privacy" className="hover:text-ink">Privacy Policy</Link>
+        <Link href="/terms" className="hover:text-ink">Terms of Service</Link>
+      </footer>
     </div>
   );
 }
