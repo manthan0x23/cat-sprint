@@ -6,9 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
-import { dayPlans, friendships, mockResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PushSub, type Targets } from "@/db/schema";
-import { EXAM_DATE, istNow, SECTIONS, weekStartOf, type Section } from "@/lib/cat";
-import { generatePlan } from "@/lib/plan-generator";
+import { dayPlans, friendships, mockResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PhaseDef, type PushSub, type Targets } from "@/db/schema";
+import { addDays, EXAM_DATE, istNow, SECTIONS, weekStartOf, ZERO, type Section } from "@/lib/cat";
+import { generatePlan, phaseFor, weekIdx } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
 import { sendEmail, sendPush } from "@/lib/notify";
 import { aiCallsLeft, cachedAI, USER_DAILY } from "@/lib/ai";
@@ -183,7 +183,16 @@ export async function applyTemplate(templateId: string, from: string, to: string
       .where(and(eq(dayPlans.userId, userId), gte(dayPlans.date, start), lte(dayPlans.date, end)));
     const w = tpl.id === "sys-weakness" ? weak : [];
     for (const d of existing) {
-      if (d.type === "rest") continue;
+      if (d.type === "rest" || d.date === EXAM_DATE) continue;
+      if (tpl.phases?.length) {
+        // Same weekday's slot if it's the same kind of day, else the phase's first slot of that kind.
+        const p = phaseFor(tpl.phases, d.date);
+        const own = p.week[weekIdx(d.date)];
+        const slot = own.type === d.type ? own : p.week.find((s) => s.type === d.type);
+        const targets = slot?.targets ?? (d.type === "mock" ? ZERO : tpl.practice);
+        await db.update(dayPlans).set({ targets, phase: p.name }).where(eq(dayPlans.id, d.id));
+        continue;
+      }
       const targets = applyWeakness(d.type === "mock" ? tpl.mock : tpl.practice, w);
       await db.update(dayPlans).set({ targets }).where(eq(dayPlans.id, d.id));
     }
@@ -197,17 +206,44 @@ export async function applyTemplate(templateId: string, from: string, to: string
   refresh();
 }
 
-export async function saveCustomTemplate(input: { name: string; practice: Targets; mock: Targets; mocksPerWeek: number; finalStretchMocksPerWeek: number }) {
+const phasesSchema = z.array(z.object({
+  name: z.string().trim().min(1).max(24),
+  until: dateSchema,
+  week: z.array(z.object({ type: z.enum(["practice", "mock", "rest"]), targets: targetsSchema })).length(7),
+})).min(1).max(8);
+
+/** Creates (no id) or updates (id) a phase-based custom template. Returns its id. */
+export async function saveCustomTemplate(input: { id?: string; name: string; phases: PhaseDef[] }): Promise<string> {
   const userId = await uid();
-  const data = z.object({
-    name: z.string().min(1).max(60),
-    practice: targetsSchema,
-    mock: targetsSchema,
-    mocksPerWeek: z.coerce.number().int().min(0).max(7),
-    finalStretchMocksPerWeek: z.coerce.number().int().min(0).max(7),
-  }).parse(input);
-  await db.insert(templates).values({ ...data, ownerId: userId, description: "Your custom template" });
+  const { id, name, phases } = z.object({ id: z.string().optional(), name: z.string().trim().min(1).max(60), phases: phasesSchema }).parse(input);
+  // Phases must run in date order; the last one always reaches the day before CAT.
+  phases[phases.length - 1].until = addDays(EXAM_DATE, -1);
+  for (let i = 1; i < phases.length; i++) {
+    if (phases[i].until <= phases[i - 1].until) throw new Error(`"${phases[i].name}" must end after "${phases[i - 1].name}"`);
+  }
+  for (const p of phases) for (const s of p.week) if (s.type === "rest") s.targets = ZERO;
+  // Summary fields keep older screens (and the day editor defaults) working.
+  const first = phases[0].week;
+  const count = (w: PhaseDef["week"]) => w.filter((s) => s.type === "mock").length;
+  const values = {
+    name,
+    phases,
+    description: `${phases.length} phase${phases.length > 1 ? "s" : ""}: ${phases.map((p) => p.name).join(" → ")}`,
+    practice: first.find((s) => s.type === "practice")?.targets ?? ZERO,
+    mock: first.find((s) => s.type === "mock")?.targets ?? ZERO,
+    mocksPerWeek: count(first),
+    finalStretchMocksPerWeek: Math.max(...phases.map((p) => count(p.week))),
+  };
+  let savedId = id;
+  if (id) {
+    const res = await db.update(templates).set(values).where(and(eq(templates.id, id), eq(templates.ownerId, userId))).returning({ id: templates.id });
+    if (!res.length) throw new Error("Template not found");
+  } else {
+    const [row] = await db.insert(templates).values({ ...values, ownerId: userId }).returning({ id: templates.id });
+    savedId = row.id;
+  }
   refresh();
+  return savedId!;
 }
 
 export async function deleteCustomTemplate(id: string) {

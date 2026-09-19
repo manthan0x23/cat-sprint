@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { templates } from "@/db/schema";
 import { requireProfile } from "@/lib/data";
 import { SECTIONS, SECTION_META } from "@/lib/cat";
 import { SYSTEM_TEMPLATES } from "@/lib/templates";
@@ -6,7 +9,8 @@ import { PushToggle, TestButton, ResetPlan, SubmitButton } from "./client";
 import { VisibilityField } from "@/components/prompts";
 
 export default async function SettingsPage() {
-  const { profile: p } = await requireProfile();
+  const { user, profile: p } = await requireProfile();
+  const custom = await db.select({ id: templates.id, name: templates.name }).from(templates).where(eq(templates.ownerId, user.id));
   const hours = Array.from({ length: 25 }, (_, h) => h);
   const hourLabel = (h: number) => (h === 24 ? "12 AM" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
 
@@ -101,7 +105,7 @@ export default async function SettingsPage() {
       <div className="card p-5">
         <div className="label">Plan</div>
         <p className="mt-2 text-[13.5px] text-muted">Rebuild your whole plan from today with a template. This replaces your custom day edits from today onwards; past days and logs stay.</p>
-        <ResetPlan templates={SYSTEM_TEMPLATES.map((t) => ({ id: t.id, name: t.name }))} current={p.templateId} />
+        <ResetPlan templates={[...SYSTEM_TEMPLATES.map((t) => ({ id: t.id, name: t.name })), ...custom]} current={p.templateId} />
       </div>
     </div>
   );

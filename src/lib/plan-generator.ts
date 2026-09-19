@@ -1,4 +1,4 @@
-import type { Targets } from "@/db/schema";
+import type { PhaseDef, Targets } from "@/db/schema";
 import { addDays, diffDays, EXAM_DATE, weekday, type Section } from "./cat";
 import { applyWeakness, type TemplateDef } from "./templates";
 
@@ -9,6 +9,7 @@ export type GeneratedDay = {
   mockName: string | null;
   note: string | null;
   tag: string | null; // short label shown on the calendar
+  phase: string | null; // which phase the day belongs to (shown in the planner's phase strip)
 };
 
 // ---------- How the plan is built ----------
@@ -58,6 +59,8 @@ export function mocksPerWeekFor(left: number, t: TemplateDef) {
   return t.mocksPerWeek;
 }
 
+export const PHASE_LABEL: Record<string, string> = { build: "Build", ramp: "Ramp", peak: "Peak", final: "Consolidate", taper: "Taper" };
+
 export function phaseOf(left: number) {
   if (left <= 0) return "exam";
   if (left <= PHASES.taperFrom) return "taper";
@@ -87,6 +90,7 @@ export function pickMockDates(start: string, exam: string, t: TemplateDef): stri
 }
 
 export function generatePlan(opts: { start: string; template: TemplateDef; weak?: Section[]; exam?: string }): GeneratedDay[] {
+  if (opts.template.phases?.length) return generatePhased(opts.start, opts.template.phases, opts.exam ?? EXAM_DATE);
   const exam = opts.exam ?? EXAM_DATE;
   const { template } = opts;
   const weak = opts.weak ?? [];
@@ -101,7 +105,7 @@ export function generatePlan(opts: { start: string; template: TemplateDef; weak?
   for (const s of weak) rotation.push(s === "rc" || s === "va" ? "varc" : s);
   let rot = 0;
 
-  const days: GeneratedDay[] = [];
+  const days: Omit<GeneratedDay, "phase">[] = [];
   let mockNo = 0;
   for (let d = opts.start; diffDays(exam, d) >= 0; d = addDays(d, 1)) {
     const left = diffDays(exam, d);
@@ -140,5 +144,54 @@ export function generatePlan(opts: { start: string; template: TemplateDef; weak?
     const focus = rotation[rot++ % rotation.length];
     days.push({ date: d, type: "practice", targets: focusTargets(practice, focus), mockName: null, note: null, tag: FOCUS_LABEL[focus] });
   }
+  return days.map((d) => ({ ...d, phase: PHASE_LABEL[phaseOf(diffDays(exam, d.date))] ?? null }));
+}
+
+/** Monday-first index (0 = Mon … 6 = Sun), matching PhaseDef.week. */
+export const weekIdx = (date: string) => (weekday(date) + 6) % 7;
+
+/** The phase a date falls in: the first whose `until` is on/after it (the last phase runs to the exam). */
+export function phaseFor(phases: PhaseDef[], date: string) {
+  return phases.find((p) => date <= p.until) ?? phases[phases.length - 1];
+}
+
+// A user-built plan: each phase repeats its own Mon..Sun pattern. No automatic review/light days;
+// the user decides every weekday. CAT day itself is always the exam.
+export function generatePhased(start: string, phases: PhaseDef[], exam = EXAM_DATE): GeneratedDay[] {
+  const days: GeneratedDay[] = [];
+  let mockNo = 0;
+  const zero = { qa: 0, rc: 0, va: 0, dilr: 0 };
+  for (let d = start; diffDays(exam, d) >= 0; d = addDays(d, 1)) {
+    if (d === exam) { days.push({ date: d, type: "rest", targets: zero, mockName: null, note: "CAT 2026. You've done the work.", tag: "CAT", phase: null }); continue; }
+    const p = phaseFor(phases, d);
+    const slot = p.week[weekIdx(d)];
+    if (slot.type === "mock") {
+      mockNo++;
+      days.push({ date: d, type: "mock", targets: slot.targets, mockName: `Mock ${mockNo}`, note: "Analyse the same day: every wrong + skipped question.", tag: null, phase: p.name });
+    } else if (slot.type === "rest") {
+      days.push({ date: d, type: "rest", targets: zero, mockName: null, note: null, tag: "Rest", phase: p.name });
+    } else {
+      days.push({ date: d, type: "practice", targets: slot.targets, mockName: null, note: null, tag: null, phase: p.name });
+    }
+  }
   return days;
+}
+
+/** A sensible starting point for the plan builder, derived from a single-pattern template. */
+export function presetPhases(t: TemplateDef, today: string, exam = EXAM_DATE): PhaseDef[] {
+  const zero = { qa: 0, rc: 0, va: 0, dilr: 0 };
+  const week = (mockDays: number[], practice: Targets, restDays: number[] = []) =>
+    Array.from({ length: 7 }, (_, i) =>
+      restDays.includes(i) ? { type: "rest" as const, targets: zero }
+        : mockDays.includes(i) ? { type: "mock" as const, targets: t.mock }
+          : { type: "practice" as const, targets: practice });
+  // Mon-first indexes: 2 = Wed, 4 = Fri, 6 = Sun
+  const mockIdx = (n: number) => (n <= 0 ? [] : n === 1 ? [6] : n === 2 ? [2, 6] : n === 3 ? [2, 4, 6] : [0, 2, 4, 6]);
+  const finalWeek = addDays(exam, -7);
+  const peakFrom = addDays(exam, -PHASES.peakFrom - 1);
+  const phases: PhaseDef[] = [];
+  if (peakFrom > today) phases.push({ name: "Foundation", until: peakFrom, week: week(mockIdx(t.mocksPerWeek), t.practice) });
+  if (finalWeek > today) phases.push({ name: "Mock phase", until: finalWeek, week: week(mockIdx(t.finalStretchMocksPerWeek), t.practice) });
+  phases.push({ name: "Final week", until: addDays(exam, -1), week: week([], scale(t.practice, 0.6), [5]) });
+  return phases;
 }

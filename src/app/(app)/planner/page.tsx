@@ -18,8 +18,8 @@ export default async function PlannerPage() {
     <PlannerView
       today={today}
       weekGoal={goal ? { targets: goal.targets, mocks: goal.mocks } : null}
-      plans={plans.map(({ date, type, targets, mockName, note, tag, mockDone, analysisDone }) => ({ date, type, targets, mockName, note, tag, mockDone, analysisDone }))}
-      templates={[...SYSTEM_TEMPLATES.map((t) => ({ ...t, custom: false })), ...custom.map((t) => ({ ...t, custom: true }))]}
+      plans={plans.map(({ date, type, targets, mockName, note, tag, phase, mockDone, analysisDone }) => ({ date, type, targets, mockName, note, tag, phase, mockDone, analysisDone }))}
+      templates={[...SYSTEM_TEMPLATES.map((t) => ({ ...t, phases: null, custom: false })), ...custom.map((t) => ({ ...t, custom: true }))]}
       currentTemplate={profile.templateId}
     />
   );

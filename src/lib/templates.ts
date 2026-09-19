@@ -1,4 +1,4 @@
-import type { Targets } from "@/db/schema";
+import type { PhaseDef, Targets } from "@/db/schema";
 import type { Section } from "./cat";
 
 export type TemplateDef = {
@@ -9,6 +9,7 @@ export type TemplateDef = {
   mock: Targets;
   mocksPerWeek: number;
   finalStretchMocksPerWeek: number;
+  phases?: PhaseDef[] | null;
 };
 
 export const SYSTEM_TEMPLATES: TemplateDef[] = [

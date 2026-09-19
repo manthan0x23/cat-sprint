@@ -81,7 +81,15 @@ export const templates = pgTable("template", {
   mock: jsonb("mock").$type<Targets>().notNull(),
   mocksPerWeek: integer("mocksPerWeek").notNull().default(2),
   finalStretchMocksPerWeek: integer("finalStretchMocksPerWeek").notNull().default(3),
+  // Custom plans built phase by phase (null = the older single-pattern templates).
+  phases: jsonb("phases").$type<PhaseDef[]>(),
 });
+
+export type DayType = "practice" | "mock" | "rest";
+/** One weekday slot in a phase's weekly pattern. */
+export type WeekSlot = { type: DayType; targets: Targets };
+/** A user-defined phase: runs from the day after the previous phase's `until` through `until` (inclusive). `week` is Mon..Sun. */
+export type PhaseDef = { name: string; until: string; week: WeekSlot[] };
 
 export const dayPlans = pgTable(
   "day_plan",
@@ -96,6 +104,7 @@ export const dayPlans = pgTable(
     analysisDone: boolean("analysisDone").notNull().default(false),
     note: text("note"),
     tag: text("tag"),
+    phase: text("phase"), // phase name from the template that generated this day
   },
   (t) => [uniqueIndex("day_plan_user_date").on(t.userId, t.date)],
 );

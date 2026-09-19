@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generatePlan } from "../plan-generator";
+import { generatePhased, generatePlan, presetPhases } from "../plan-generator";
 import { SYSTEM_TEMPLATES } from "../templates";
 import { computeStats, projectScore, skipImpact, plannedMinutes, expectedFraction } from "../progress";
 import { istNow, daysToExam, weekday, unitMinutes } from "../cat";
@@ -217,5 +217,53 @@ describe("fmtPct", async () => {
     expect(fmtPct(99.999)).toBe("99.99");
     expect(fmtPct(99.9)).toBe("99.9");
     expect(fmtPct(99.5)).toBe("99.5");
+  });
+});
+
+describe("custom phases", () => {
+  const t = { qa: 20, rc: 2, va: 8, dilr: 2 };
+  const mockTop = { qa: 5, rc: 0, va: 0, dilr: 0 };
+  const zero = { qa: 0, rc: 0, va: 0, dilr: 0 };
+  const P = { type: "practice" as const, targets: t };
+  const phases = [
+    // Mon..Sun: mock on Sun
+    { name: "Foundation", until: "2026-10-18", week: [P, P, P, P, P, P, { type: "mock" as const, targets: mockTop }] },
+    // Wed + Sun mocks, Sat rest
+    { name: "Mocks", until: "2026-11-28", week: [P, P, { type: "mock" as const, targets: zero }, P, P, { type: "rest" as const, targets: zero }, { type: "mock" as const, targets: zero }] },
+  ];
+  const plan = generatePhased("2026-09-19", phases);
+
+  it("covers every day and ends on CAT", () => {
+    expect(plan[0].date).toBe("2026-09-19");
+    expect(plan.at(-1)!).toMatchObject({ date: "2026-11-29", tag: "CAT", phase: null });
+  });
+  it("uses each phase's weekday pattern", () => {
+    const by = new Map(plan.map((d) => [d.date, d]));
+    expect(by.get("2026-09-20")).toMatchObject({ type: "mock", targets: mockTop, phase: "Foundation" }); // Sun
+    expect(by.get("2026-10-18")!.phase).toBe("Foundation"); // `until` is inclusive
+    expect(by.get("2026-10-19")).toMatchObject({ type: "practice", phase: "Mocks" });
+    expect(by.get("2026-10-21")!.type).toBe("mock"); // Wed
+    expect(by.get("2026-10-24")!.type).toBe("rest"); // Sat
+  });
+  it("numbers mocks in order", () => {
+    const names = plan.filter((d) => d.type === "mock").map((d) => d.mockName);
+    expect(names[0]).toBe("Mock 1");
+    expect(names.at(-1)).toBe(`Mock ${names.length}`);
+  });
+  it("generatePlan routes phased templates to the phase generator", () => {
+    const tpl = { ...SYSTEM_TEMPLATES[1], id: "x", phases };
+    expect(generatePlan({ start: "2026-09-19", template: tpl })).toEqual(plan);
+  });
+  it("system plans label each day with its phase", () => {
+    const sys = generatePlan({ start: "2026-09-18", template: manthan });
+    expect(sys[0].phase).toBe("Build");
+    expect(sys.find((d) => d.date === "2026-11-25")!.phase).toBe("Consolidate");
+  });
+  it("preset phases are contiguous and end the day before CAT", () => {
+    const ps = presetPhases(manthan, "2026-09-19");
+    expect(ps.map((p) => p.name)).toEqual(["Foundation", "Mock phase", "Final week"]);
+    expect(ps.at(-1)!.until).toBe("2026-11-28");
+    for (let i = 1; i < ps.length; i++) expect(ps[i].until > ps[i - 1].until).toBe(true);
+    expect(ps.every((p) => p.week.length === 7)).toBe(true);
   });
 });
