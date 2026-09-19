@@ -68,6 +68,7 @@ html { color-scheme: light; }
     --grid: rgba(255, 255, 255, 0.035);
     --btn-ink: #000000;
     --s-done: #2f95dc; --s-plan: #d98506; --s-debt: rgba(248, 113, 113, .12); --heat-0: #1f1f24; --heat-1: #13324a; --heat-2: #1d5580; --heat-3: #2f86c4; --heat-4: #6cbcf2;
+    --y2021: #3987e5; --y2022: #d95926; --y2023: #199e70; --y2024: #c98500; --y2025: #d55181;
     color-scheme: dark;
   }
 }
@@ -91,6 +92,7 @@ html { color-scheme: light; }
     --grid: rgba(255, 255, 255, 0.035);
     --btn-ink: #000000;
     --s-done: #2f95dc; --s-plan: #d98506; --s-debt: rgba(248, 113, 113, .12); --heat-0: #1f1f24; --heat-1: #13324a; --heat-2: #1d5580; --heat-3: #2f86c4; --heat-4: #6cbcf2;
+    --y2021: #3987e5; --y2022: #d95926; --y2023: #199e70; --y2024: #c98500; --y2025: #d55181;
   color-scheme: dark;
 }
 
@@ -183,7 +185,9 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.5; }
 }
 
 /* Chart series tokens (validated: CVD ΔE ≥ 25, contrast ≥ 3:1 on both surfaces) */
-:root { --s-done: #1a8cd8; --s-plan: #d97706; --s-debt: rgba(220, 38, 38, .10); --heat-0: #eef0f3; --heat-1: #cfe6f8; --heat-2: #8cc6ef; --heat-3: #3f9fe0; --heat-4: #1569a8; }
+:root { --s-done: #1a8cd8; --s-plan: #d97706; --s-debt: rgba(220, 38, 38, .10); --heat-0: #eef0f3; --heat-1: #cfe6f8; --heat-2: #8cc6ef; --heat-3: #3f9fe0; --heat-4: #1569a8;
+  /* CAT-year series (validated: adjacent CVD ΔE ≥ 8.4; light-mode sub-3:1 hues always ship with direct labels + table) */
+  --y2021: #2a78d6; --y2022: #eb6834; --y2023: #1baf7a; --y2024: #eda100; --y2025: #e87ba4; }
 
 /* Smooth cross-fade while switching themes */
 .theme-anim, .theme-anim *, .theme-anim *::before, .theme-anim *::after {

@@ -4,9 +4,12 @@ import { dayPlans, mockResults } from "@/db/schema";
 import { requireProfile } from "@/lib/data";
 import { fmtDate, istNow, SECTION_META } from "@/lib/cat";
 import { MockForm, MockChart, DeleteMock } from "./client";
+import Link from "next/link";
+import { targetBand } from "@/lib/cat-history";
 
 export default async function MocksPage() {
-  const { user } = await requireProfile();
+  const { user, profile } = await requireProfile();
+  const band = targetBand(profile.targetPercentile);
   const today = istNow().date;
   const [mocks, upcoming] = await Promise.all([
     db.select().from(mockResults).where(eq(mockResults.userId, user.id)).orderBy(asc(mockResults.date)),
@@ -26,9 +29,10 @@ export default async function MocksPage() {
         <div className="card p-5 lg:col-span-2">
           <div className="flex items-center justify-between">
             <span className="label">Score by mock</span>
+            {band && <Link href="/percentiles" className="text-[12px] text-muted hover:text-ink">shaded: what <span className="num text-ink">{profile.targetPercentile}</span> %ile took in CAT 2021–25 (<span className="num">{band.lo.toFixed(0)}–{band.hi.toFixed(0)}</span>) <span className="text-accent">→ score vs %ile</span></Link>}
           </div>
           {mocks.length ? (
-            <div className="mt-4"><MockChart data={mocks} /></div>
+            <div className="mt-4"><MockChart data={mocks} band={band && { pct: profile.targetPercentile, lo: band.lo, hi: band.hi }} /></div>
           ) : (
             <div className="mt-4 h-[240px] grid place-items-center rounded-xl border border-dashed border-line-2 text-muted text-sm">No mocks logged yet</div>
           )}

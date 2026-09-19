@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { addMockResult, deleteMockResult } from "@/app/actions";
 import { fmtDate } from "@/lib/cat";
 
@@ -60,7 +60,9 @@ export function DeleteMock({ id }: { id: number }) {
 
 type Pt = { date: string; name: string; score: number | null; varc: number | null; dilr: number | null; qa: number | null };
 
-export function MockChart({ data }: { data: Pt[] }) {
+type Band = { pct: number; lo: number; hi: number };
+
+export function MockChart({ data, band }: { data: Pt[]; band?: Band | null }) {
   const pts = data.filter((d) => d.score != null);
   if (!pts.length) return <div className="h-[240px] grid place-items-center text-muted text-sm">No scores logged yet</div>;
   const last = pts.at(-1)!;
@@ -70,7 +72,9 @@ export function MockChart({ data }: { data: Pt[] }) {
         <LineChart data={pts} margin={{ top: 10, right: 48, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--line)" />
           <XAxis dataKey="date" tickFormatter={(d) => fmtDate(d)} tick={{ fontSize: 11, fill: "var(--muted)" }} axisLine={{ stroke: "var(--line)" }} tickLine={false} />
-          <YAxis domain={[(lo: number) => Math.max(0, Math.floor(lo / 10) * 10 - 10), (hi: number) => Math.ceil(hi / 10) * 10 + 10]} tick={{ fontSize: 11, fill: "var(--muted)" }} axisLine={false} tickLine={false} width={36} />
+          <YAxis domain={[(lo: number) => Math.max(0, Math.floor(Math.min(lo, band?.lo ?? lo) / 10) * 10 - 10), (hi: number) => Math.ceil(Math.max(hi, band?.hi ?? hi) / 10) * 10 + 10]} tick={{ fontSize: 11, fill: "var(--muted)" }} axisLine={false} tickLine={false} width={36} />
+          {band && <ReferenceArea y1={band.lo} y2={band.hi} fill="var(--s-plan)" fillOpacity={0.12} stroke="none" ifOverflow="extendDomain"
+            label={{ value: `${band.pct} %ile`, position: "insideTopRight", fontSize: 11, fill: "var(--ink-2)" }} />}
           <Tooltip cursor={{ stroke: "var(--line-2)" }} content={({ active, payload }) => {
             if (!active || !payload?.length) return null;
             const d = payload[0].payload as Pt;

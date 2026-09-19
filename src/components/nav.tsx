@@ -4,13 +4,14 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { CalendarDays, LayoutDashboard, LineChart, LogOut, Menu, Settings, UserRound, Users, X } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LineChart, LogOut, Menu, Percent, Settings, UserRound, Users, X } from "lucide-react";
 import { ThemeSwitcher } from "./theme-switcher";
 
 const items = [
   { href: "/dashboard", label: "Today", desc: "Log progress, see your pace", icon: LayoutDashboard },
   { href: "/planner", label: "Planner", desc: "Every day to 29 Nov", icon: CalendarDays },
   { href: "/mocks", label: "Mocks", desc: "Scores and trend", icon: LineChart },
+  { href: "/percentiles", label: "Score vs %ile", desc: "What past CATs needed", icon: Percent },
   { href: "/friends", label: "Friends", desc: "Today's board, nudges", icon: Users },
   { href: "/settings", label: "Settings", desc: "Goal, coach, notifications", icon: Settings },
 ];

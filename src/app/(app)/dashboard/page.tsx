@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, Flame, Target, TrendingUp 
 import { requireProfile, loadUserState, type UserState } from "@/lib/data";
 import { daysToExam, fmtDate, fmtHour } from "@/lib/cat";
 import { MAX_SCORE, minutesToH } from "@/lib/progress";
+import { fmtPct, percentileBand, targetBand } from "@/lib/cat-history";
 import { TodayCard } from "@/components/dash/today-card";
 import { PaceChart } from "@/components/dash/pace-chart";
 import { Heatmap } from "@/components/dash/heatmap";
@@ -118,8 +119,11 @@ function Hero({ s, left }: { s: UserState; left: number }) {
 function GoalCard({ s }: { s: UserState }) {
   const target = s.profile.targetPercentile;
   const p = s.projection;
-  const gain = p ? p.projected - p.base : null;
+  const band = targetBand(target);
   const need = Math.max(1, 2 - s.mocks.filter((m) => m.score != null).length);
+  const est = p ? percentileBand(p.projected) : null;
+  // Safe = cleared the target in every past year; in band = would have in some years.
+  const tone = !p || !band ? (p && p.rate > 0 ? "text-good" : "text-muted") : p.projected >= band.hi ? "text-good" : p.projected >= band.lo ? "text-warn" : "text-bad";
   return (
     <div className="card p-5 flex flex-col">
       <div className="flex items-center justify-between">
@@ -131,29 +135,36 @@ function GoalCard({ s }: { s: UserState }) {
       </div>
       <div className="mt-4 flex items-end gap-6">
         <div>
-          <div className="text-[12px] text-muted">Mock score now</div>
-          <div className="num text-[34px] leading-none font-medium mt-1">{p ? p.base.toFixed(0) : "—"}</div>
+          <div className="text-[12px] text-muted">Score needed</div>
+          <div className="num text-[34px] leading-none font-medium mt-1">{band ? band.hi.toFixed(0) : "—"}</div>
         </div>
         <div>
           <div className="text-[12px] text-muted">Projected on CAT day</div>
-          <div className={clsx("num text-[34px] leading-none font-medium mt-1", p ? (p.rate > 0 ? "text-good" : p.rate === 0 ? "text-warn" : "text-bad") : "text-muted")}>
-            {p ? p.projected.toFixed(0) : "—"}
-          </div>
+          <div className={clsx("num text-[34px] leading-none font-medium mt-1", tone)}>{p ? p.projected.toFixed(0) : "—"}</div>
         </div>
       </div>
+      {band && (
+        <p className="mt-2 text-[12px] text-muted">
+          {target} %ile took <span className="num text-ink-2">{band.lo.toFixed(0)}–{band.hi.toFixed(0)}</span> marks in CAT 2021–25. The top of that range is the safe target.
+        </p>
+      )}
       {p ? (
         <>
-          <Scale base={p.base} projected={p.projected} />
+          <Scale base={p.base} projected={p.projected} band={band} />
           <p className="mt-3 text-[13px] text-ink-2 leading-relaxed">
+            {est && <>Projected <span className="num">{p.projected.toFixed(0)}</span> ≈ <b className="num">{est.belowAll ? "<90" : `${fmtPct(est.lo)}${est.hi !== est.lo ? `–${fmtPct(est.hi)}` : ""}${est.aboveSome ? "+" : ""}`}</b> %ile on past papers. </>}
             {p.rate <= 0
               ? <>Your mock scores aren&apos;t rising yet. Mock analysis is where the next marks come from.</>
-              : <>Trending <b className="num">+{gain!.toFixed(0)}</b> marks by CAT. At full consistency you&apos;d gain ~<span className="num">{(p.rate * 7).toFixed(1)}</span> marks/week instead of <span className="num">{p.perWeekNow.toFixed(1)}</span>.</>}
+              : band && p.projected < band.hi
+                ? <>Short of the safe target by <b className="num">{(band.hi - p.projected).toFixed(0)}</b> marks. At full consistency you&apos;d gain ~<span className="num">{(p.rate * 7).toFixed(1)}</span> marks/week instead of <span className="num">{p.perWeekNow.toFixed(1)}</span>.</>
+                : <>On course for your target in every recent year if you keep this consistency.</>}
           </p>
           <details className="mt-auto pt-3 text-[11.5px] text-muted">
             <summary className="cursor-pointer hover:text-ink">How is this projected?</summary>
             <p className="mt-1.5 leading-relaxed">
               Fits a straight line through your {p.mocks} mock scores, then scales that improvement rate by your 14-day consistency ({Math.round(s.stats.consistency * 100)}%).
-              The rate is capped at ±1 mark/day so one lucky mock can&apos;t dominate. Mock percentiles are ignored: they depend on who else took that test series. It&apos;s a rough estimate, not a prediction.
+              The rate is capped at ±1 mark/day so one lucky mock can&apos;t dominate. The %ile estimate reads that score against published CAT 2021–25 score-vs-percentile data
+              (see <Link href="/mocks" className="text-accent hover:underline">Mocks</Link>). Mocks vary in difficulty, so treat both as rough estimates, not predictions.
             </p>
           </details>
         </>
@@ -168,18 +179,25 @@ function GoalCard({ s }: { s: UserState }) {
   );
 }
 
-function Scale({ base, projected }: { base: number; projected: number }) {
-  const lo = Math.max(0, Math.floor(Math.min(base, projected) / 20) * 20 - 20);
-  const hi = Math.min(MAX_SCORE, Math.ceil(Math.max(base, projected) / 20) * 20 + 20);
+function Scale({ base, projected, band }: { base: number; projected: number; band: { lo: number; hi: number } | null }) {
+  const vals = [base, projected, ...(band ? [band.lo, band.hi] : [])];
+  const lo = Math.max(0, Math.floor(Math.min(...vals) / 20) * 20 - 20);
+  const hi = Math.min(MAX_SCORE, Math.ceil(Math.max(...vals) / 20) * 20 + 20);
   const x = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
   return (
     <div className="mt-5">
       <div className="relative h-2 rounded-full bg-line">
+        {band && <div className="absolute -inset-y-1 rounded bg-[var(--s-plan)]/25" style={{ left: x(band.lo), width: `calc(${x(band.hi)} - ${x(band.lo)})` }} title="Target band" />}
         <div className="absolute inset-y-0 rounded-full bg-[var(--s-done)]/35" style={{ left: x(Math.min(base, projected)), width: `calc(${x(Math.max(base, projected))} - ${x(Math.min(base, projected))})` }} />
         <Dot at={x(base)} className="bg-panel border-2 border-[var(--s-done)]" label={`now ${base.toFixed(0)}`} />
         <Dot at={x(projected)} className="bg-[var(--s-done)] border-2 border-panel" label={`CAT day ${projected.toFixed(0)}`} />
+        {band && <div className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-ink" style={{ left: x(band.hi) }} title={`safe target ${band.hi.toFixed(0)}`} />}
       </div>
-      <div className="mt-2 flex justify-between text-[10.5px] text-muted num"><span>{lo}</span><span>marks</span><span>{hi}</span></div>
+      <div className="mt-2 flex justify-between text-[10.5px] text-muted num">
+        <span>{lo}</span>
+        <span>now <span className="text-ink-2">{base.toFixed(0)}</span>{band && <> · target band <span className="text-ink-2">{band.lo.toFixed(0)}–{band.hi.toFixed(0)}</span></>}</span>
+        <span>{hi}</span>
+      </div>
     </div>
   );
 }

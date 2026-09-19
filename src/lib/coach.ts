@@ -1,6 +1,7 @@
 import type { UserState } from "./data";
 import { addDays, daysToExam, fmtHour, SECTIONS, SECTION_META, unitLabel } from "./cat";
 import { minutesToH } from "./progress";
+import { targetBand } from "./cat-history";
 
 // The coach engine.
 //   1. classify() decides the SITUATION from numbers (rules → reliable timing).
@@ -99,6 +100,10 @@ export const TITLES: Record<Situation, (s: UserState) => string> = {
 };
 
 // ---------- Facts for the model ----------
+function targetLine(pct: number) {
+  const b = targetBand(pct);
+  return b ? ` (needed ${b.lo.toFixed(0)}–${b.hi.toFixed(0)} marks in CAT 2021–25; safe target ${b.hi.toFixed(0)})` : "";
+}
 function lastMockLine(m: UserState["mocks"][number]) {
   const secs = m.varc != null || m.dilr != null || m.qa != null ? ` (VARC ${m.varc ?? "?"}, DILR ${m.dilr ?? "?"}, QA ${m.qa ?? "?"})` : "";
   const notes = Object.entries(m.sectionNotes ?? {}).map(([k, v]) => `${SECTION_META[k as keyof typeof SECTION_META]?.short ?? k}: "${v}"`).join("; ");
@@ -110,7 +115,7 @@ export function facts(s: UserState, ctx?: CoachContext) {
   const y = yesterdayRow(s);
   const rem = remaining(s);
   const lines = [
-    `Name: ${s.firstName}. Days to CAT (29 Nov 2026): ${daysToExam(s.today)}. Target: ${s.profile.targetPercentile} %ile.`,
+    `Name: ${s.firstName}. Days to CAT (29 Nov 2026): ${daysToExam(s.today)}. Target: ${s.profile.targetPercentile} %ile${targetLine(s.profile.targetPercentile)}.`,
     s.profile.dreamColleges.length ? `Dream colleges: ${s.profile.dreamColleges.join(", ")}.` : "",
     s.profile.why ? `Their own "why", in their words: "${s.profile.why}"` : "",
     s.profile.weakSections.length ? `Weak sections: ${s.profile.weakSections.map((w) => SECTION_META[w as keyof typeof SECTION_META]?.short ?? w).join(", ")}.` : "",

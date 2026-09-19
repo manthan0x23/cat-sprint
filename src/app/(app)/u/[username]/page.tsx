@@ -10,6 +10,7 @@ import { minutesToH } from "@/lib/progress";
 import { Avatar } from "@/components/avatar";
 import { Heatmap } from "@/components/dash/heatmap";
 import { MockChart } from "../../mocks/client";
+import { targetBand } from "@/lib/cat-history";
 import { FriendAction } from "../../friends/client";
 
 export default async function ProfilePage({ params }: PageProps<"/u/[username]">) {
@@ -71,7 +72,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
               {s.mocks == null ? (
                 <p className="mt-4 text-sm text-muted">@{u} keeps mock scores private.</p>
               ) : s.mocks.length ? (
-                <div className="mt-4"><MockChart data={s.mocks.map((m) => ({ ...m, varc: null, dilr: null, qa: null }))} /></div>
+                <div className="mt-4"><MockChart data={s.mocks.map((m) => ({ ...m, varc: null, dilr: null, qa: null }))} band={(() => { const b = targetBand(s.target); return b && { pct: s.target, ...b }; })()} /></div>
               ) : <p className="mt-4 text-sm text-muted">No mocks logged yet.</p>}
             </div>
           </div>

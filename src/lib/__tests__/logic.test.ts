@@ -184,3 +184,38 @@ describe("weekly goal", async () => {
     expect(w.planBelowGoal).toEqual(["qa", "rc", "va", "dilr"]);
   });
 });
+
+describe("past CAT curves", async () => {
+  const { CAT_CURVES, percentileFor, scoreFor, targetBand, percentileBand } = await import("../cat-history");
+  const y2025 = CAT_CURVES.find((c) => c.year === 2025)!;
+  it("published rows are exact, gaps are interpolated", () => {
+    expect(scoreFor(y2025, 99)).toEqual({ score: 84.8, exact: true });
+    expect(scoreFor(y2025, 99.25)!.score).toBeCloseTo((84.8 + 93) / 2);
+    expect(scoreFor(y2025, 99.25)!.exact).toBe(false);
+  });
+  it("curves are monotonic", () => {
+    for (const c of CAT_CURVES) for (let i = 1; i < c.points.length; i++) {
+      expect(c.points[i][0]).toBeGreaterThan(c.points[i - 1][0]);
+      expect(c.points[i][1]).toBeGreaterThan(c.points[i - 1][1]);
+    }
+  });
+  it("99 %ile band spans the easiest and toughest year", () => {
+    const b = targetBand(99)!;
+    expect(b.lo).toBe(76.15); // 2023
+    expect(b.hi).toBe(98); // 2021
+  });
+  it("never extrapolates past the top published row", () => {
+    expect(percentileFor(CAT_CURVES[0], 150)).toEqual({ pct: 99.9, atLeast: true });
+    expect(percentileBand(40).belowAll).toBe(true);
+  });
+});
+
+describe("fmtPct", async () => {
+  const { fmtPct } = await import("../cat-history");
+  it("never rounds up into the next percentile", () => {
+    expect(fmtPct(98.96)).toBe("98.9");
+    expect(fmtPct(99.999)).toBe("99.99");
+    expect(fmtPct(99.9)).toBe("99.9");
+    expect(fmtPct(99.5)).toBe("99.5");
+  });
+});

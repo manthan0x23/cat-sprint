@@ -8,6 +8,7 @@ import { SYSTEM_TEMPLATES } from "@/lib/templates";
 import { generatePlan } from "@/lib/plan-generator";
 import { SECTIONS, SECTION_META, type Section } from "@/lib/cat";
 import { plannedMinutes, minutesToH } from "@/lib/progress";
+import { targetBand } from "@/lib/cat-history";
 
 const PRESETS = [95, 97, 98, 99, 99.5];
 
@@ -59,6 +60,11 @@ export function OnboardingForm({ today, suggested }: { today: string; suggested:
           <input name="targetPercentile" type="number" step="0.1" min={50} max={100} value={target}
             onChange={(e) => setTarget(Number(e.target.value))} className="input num w-24 h-[30px]" />
         </div>
+        {targetBand(target) && (
+          <p className="mt-2 text-[12.5px] text-muted">
+            {target} %ile took <span className="num text-ink">{targetBand(target)!.lo.toFixed(0)}–{targetBand(target)!.hi.toFixed(0)}</span> marks out of ~200 in CAT 2021–25, depending on the year&apos;s difficulty.
+          </p>
+        )}
       </Step>
 
       <Step n={2} title="Where, and why" hint="The coach quotes this back to you on bad days.">
