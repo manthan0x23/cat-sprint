@@ -3,6 +3,7 @@ import { ArrowRight, BellRing, Brain, CalendarRange, TrendingUp } from "lucide-r
 import { auth, devLoginEnabled } from "@/auth";
 import { Logo } from "@/components/logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { DemoVideo } from "@/components/demo-video";
 import { daysToExam, istNow } from "@/lib/cat";
 import { devSignIn, signInWithGoogle } from "./actions";
 
@@ -43,7 +44,10 @@ export default async function Landing() {
         )}
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 mt-20 md:mt-28 pb-20 grid gap-3 md:grid-cols-4">
+      <section className="px-4 mt-16 md:mt-20 rise" style={{ animationDelay: "120ms" }}>
+        <DemoVideo />
+      </section>
+      <section className="mx-auto max-w-5xl px-4 mt-16 md:mt-20 pb-20 grid gap-3 md:grid-cols-4">
         {[
           { icon: CalendarRange, t: "Mock calendar", d: "Auto-planned to CAT day: 2/week now, 3/week in the final stretch, tapering at the end." },
           { icon: TrendingUp, t: "Cause → effect", d: "See how skipping today changes your backlog, your consistency and your projected score." },
