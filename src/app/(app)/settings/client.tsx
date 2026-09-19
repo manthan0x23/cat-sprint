@@ -2,39 +2,15 @@
 import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { Bell, BellRing, Send } from "lucide-react";
-import { resetPlanFromToday, savePushSubscription, sendTestNotification } from "@/app/actions";
-
-function b64ToUint8(base64: string) {
-  const pad = "=".repeat((4 - (base64.length % 4)) % 4);
-  const raw = atob((base64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-}
+import { resetPlanFromToday, sendTestNotification } from "@/app/actions";
+import { subscribeThisDevice } from "@/lib/push-client";
 
 export function PushToggle({ subscribed }: { subscribed: number }) {
   const [state, setState] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   const enable = () =>
-    start(async () => {
-      try {
-        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-          setState("This browser doesn't support push. On iPhone, install to Home Screen first.");
-          return;
-        }
-        const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!key) { setState("Server is missing the VAPID public key."); return; }
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") { setState("Permission denied. Allow notifications in site settings."); return; }
-        const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
-        await navigator.serviceWorker.ready;
-        const sub = (await reg.pushManager.getSubscription()) ??
-          (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(key) }));
-        await savePushSubscription(JSON.parse(JSON.stringify(sub)));
-        setState("This device is subscribed ✓");
-      } catch (e) {
-        setState(`Failed: ${(e as Error).message}`);
-      }
-    });
+    start(async () => setState((await subscribeThisDevice()) ?? "This device is subscribed ✓"));
 
   return (
     <div className="text-right shrink-0">

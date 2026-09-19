@@ -3,6 +3,7 @@ import { SECTIONS, SECTION_META } from "@/lib/cat";
 import { SYSTEM_TEMPLATES } from "@/lib/templates";
 import { saveNotificationSettings, saveProfileSettings, updateGoal } from "@/app/actions";
 import { PushToggle, TestButton, ResetPlan, SubmitButton } from "./client";
+import { VisibilityField } from "@/components/prompts";
 
 export default async function SettingsPage() {
   const { profile: p } = await requireProfile();
@@ -18,17 +19,14 @@ export default async function SettingsPage() {
 
       <form action={saveProfileSettings} className="card p-5 space-y-4">
         <div className="label">Profile & privacy</div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label><span className="text-[13px] text-muted">Username</span>
-            <div className="relative mt-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
-              <input name="username" required pattern="[a-z0-9_]{3,20}" defaultValue={p.username ?? ""} className="input !pl-7 num" />
-            </div></label>
-          <label><span className="text-[13px] text-muted">Who can see your stats</span>
-            <select name="visibility" defaultValue={p.visibility} className="input mt-1">
-              <option value="friends">Friends only</option>
-              <option value="public">Anyone signed in</option>
-            </select></label>
+        <label className="block max-w-xs"><span className="text-[13px] text-muted">Username</span>
+          <div className="relative mt-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
+            <input name="username" required pattern="[a-z0-9_]{3,20}" defaultValue={p.username ?? ""} className="input !pl-7 num" />
+          </div></label>
+        <div>
+          <span className="text-[13px] text-muted">Who can see your profile</span>
+          <div className="mt-1.5"><VisibilityField initial={p.visibility} /></div>
         </div>
         <label className="flex items-center gap-2 text-[13.5px]">
           <input type="checkbox" name="showMocks" defaultChecked={p.showMocks} className="accent-[var(--accent)]" /> Show my mock percentiles on my profile

@@ -65,6 +65,7 @@ const onboardSchema = z.object({
   studyStartHour: z.coerce.number().int().min(0).max(23),
   studyEndHour: z.coerce.number().int().min(1).max(24),
   templateId: z.string().min(1),
+  visibility: z.enum(["friends", "public"]),
 });
 
 export async function completeOnboarding(formData: FormData) {
@@ -78,6 +79,7 @@ export async function completeOnboarding(formData: FormData) {
     studyStartHour: formData.get("studyStartHour"),
     studyEndHour: formData.get("studyEndHour"),
     templateId: formData.get("templateId"),
+    visibility: formData.get("visibility"),
   });
   if (data.studyEndHour <= data.studyStartHour) throw new Error("Study window must end after it starts");
   const username = normalizeUsername(data.username);
@@ -88,6 +90,7 @@ export async function completeOnboarding(formData: FormData) {
     username,
     dreamColleges: data.dreamColleges.split(",").map((s) => s.trim()).filter(Boolean),
     onboarded: true,
+    visibilityChosen: true,
   };
   await db.insert(profiles).values({ userId, ...values }).onConflictDoUpdate({ target: profiles.userId, set: values });
 
@@ -325,7 +328,14 @@ export async function saveProfileSettings(formData: FormData) {
   const check = await checkUsername(username);
   if (!check.ok) throw new Error(`Username: ${check.reason}`);
   const visibility = z.enum(["friends", "public"]).parse(formData.get("visibility"));
-  await db.update(profiles).set({ username, visibility, showMocks: formData.get("showMocks") === "on" }).where(eq(profiles.userId, userId));
+  await db.update(profiles).set({ username, visibility, visibilityChosen: true, showMocks: formData.get("showMocks") === "on" }).where(eq(profiles.userId, userId));
+  refresh();
+}
+
+export async function setVisibility(visibility: "friends" | "public") {
+  const userId = await uid();
+  const v = z.enum(["friends", "public"]).parse(visibility);
+  await db.update(profiles).set({ visibility: v, visibilityChosen: true }).where(eq(profiles.userId, userId));
   refresh();
 }
 

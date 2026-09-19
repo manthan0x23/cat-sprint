@@ -53,6 +53,7 @@ export const profiles = pgTable("profile", {
   userId: text("userId").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   username: text("username").unique(), // lowercase [a-z0-9_]{3,20}
   visibility: text("visibility").$type<"friends" | "public">().notNull().default("friends"),
+  visibilityChosen: boolean("visibilityChosen").notNull().default(false), // false = never picked; prompt once
   showMocks: boolean("showMocks").notNull().default(true),
   coachIntensity: text("coachIntensity").$type<"gentle" | "firm" | "strict">().notNull().default("firm"),
   targetPercentile: real("targetPercentile").notNull().default(99),

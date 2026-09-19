@@ -9,6 +9,7 @@ import { generatePlan } from "@/lib/plan-generator";
 import { SECTIONS, SECTION_META, type Section } from "@/lib/cat";
 import { plannedMinutes, minutesToH } from "@/lib/progress";
 import { targetBand } from "@/lib/cat-history";
+import { VisibilityField } from "@/components/prompts";
 
 const PRESETS = [95, 97, 98, 99, 99.5];
 
@@ -42,13 +43,18 @@ export function OnboardingForm({ today, suggested }: { today: string; suggested:
 
   return (
     <form action={completeOnboarding} className="mt-8 space-y-4">
-      <Step n={0} title="Pick a username" hint="Friends find you by this. Your profile lives at /u/username.">
+      <Step n={0} title="Username & profile visibility" hint="Friends find you by this. Your profile lives at /u/username.">
         <div className="relative max-w-xs">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
           <input name="username" required value={username} onChange={(e) => onUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
             maxLength={20} className="input !pl-7 num" placeholder="manthan_99" />
         </div>
         {uState && <p className={clsx("mt-1.5 text-[12.5px]", uState.ok ? "text-good" : "text-bad")}>{uState.ok ? "Available ✓" : uState.reason}</p>}
+        <div className="mt-5">
+          <div className="text-[14px] font-medium">Who can see your profile?</div>
+          <p className="mt-0.5 mb-2.5 text-[13px] text-muted">Your &ldquo;why&rdquo;, notes and notification settings are never shared. Change it any time in Settings.</p>
+          <VisibilityField initial="friends" />
+        </div>
       </Step>
 
       <Step n={1} title="Target percentile">
