@@ -55,19 +55,27 @@ async function writePlan(userId: string, days: ReturnType<typeof generatePlan>, 
   if (days.length) await db.insert(dayPlans).values(days.map((d) => ({ ...d, userId })));
 }
 
+/** Same wording wherever a username is rejected (onboarding and settings). */
+function usernameError(username: string, reason: string) {
+  return reason === "Taken" ? `@${username} is already taken. Pick another.` : `That username won't work: ${reason.toLowerCase()}.`;
+}
+
 // ---------- Onboarding ----------
-export async function completeOnboarding(formData: FormData) {
+export async function completeOnboarding(_prev: FormResult | null, formData: FormData): Promise<FormResult> {
   const userId = await uid();
-  const data = onboardSchema.parse({
+  const parsed = onboardSchema.safeParse({
     ...goalFields(formData),
     username: formData.get("username") ?? "",
     templateId: formData.get("templateId"),
     visibility: formData.get("visibility"),
   });
-  if (data.studyEndHour <= data.studyStartHour) throw new Error("Study window must end after it starts");
+  if (!parsed.success) return { ok: false, error: "Check your target percentile and study hours." };
+  const data = parsed.data;
+  if (data.studyEndHour <= data.studyStartHour) return { ok: false, error: "Study window must end after it starts." };
   const username = normalizeUsername(data.username);
+  // Someone can take the name between the live check and this submit, so check again here.
   const check = await checkUsername(username);
-  if (!check.ok) throw new Error(check.reason);
+  if (!check.ok) return { ok: false, error: usernameError(username, check.reason) };
   const values = {
     ...data,
     username,
@@ -79,7 +87,7 @@ export async function completeOnboarding(formData: FormData) {
   await db.insert(profiles).values({ userId, ...values }).onConflictDoUpdate({ target: profiles.userId, set: values });
 
   const tpl = await getTemplate(userId, data.templateId);
-  if (!tpl) throw new Error("Template not found");
+  if (!tpl) return { ok: false, error: "That template no longer exists. Pick another." };
   const { date } = istNow();
   await writePlan(userId, generatePlan({ start: date, template: tpl, weak: data.weakSections }), date);
   redirect("/dashboard");
@@ -370,7 +378,7 @@ export async function saveProfileSettings(_prev: FormResult | null, formData: Fo
   const userId = await uid();
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const check = await checkUsername(username);
-  if (!check.ok) return { ok: false, error: `Username: ${check.reason}` };
+  if (!check.ok) return { ok: false, error: usernameError(username, check.reason) };
   const visibility = z.enum(["friends", "public"]).safeParse(formData.get("visibility"));
   if (!visibility.success) return { ok: false, error: "Pick who can see your profile." };
   await db.update(profiles).set({ username, visibility: visibility.data, visibilityChosen: true, showMocks: formData.get("showMocks") === "on" }).where(eq(profiles.userId, userId));

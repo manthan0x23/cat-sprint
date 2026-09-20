@@ -5,7 +5,7 @@ import { requireProfile } from "@/lib/data";
 import { SECTIONS, SECTION_META } from "@/lib/cat";
 import { SYSTEM_TEMPLATES } from "@/lib/templates";
 import { saveNotificationSettings, saveProfileSettings, updateGoal } from "@/app/actions";
-import { PushToggle, TestButton, ResetPlan, SettingsForm } from "./client";
+import { PushToggle, TestButton, ResetPlan, SettingsForm, UsernameField } from "./client";
 import { VisibilityField } from "@/components/prompts";
 
 export default async function SettingsPage() {
@@ -24,10 +24,7 @@ export default async function SettingsPage() {
       <SettingsForm action={saveProfileSettings} submit="Save profile" className="card p-5 space-y-4">
         <div className="label">Profile & privacy</div>
         <label className="block max-w-xs"><span className="text-[13px] text-muted">Username</span>
-          <div className="relative mt-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
-            <input name="username" required pattern="[a-z0-9_]{3,20}" defaultValue={p.username ?? ""} className="input !pl-7 num" />
-          </div></label>
+          <UsernameField initial={p.username ?? ""} /></label>
         <div>
           <span className="text-[13px] text-muted">Who can see your profile</span>
           <div className="mt-1.5"><VisibilityField initial={p.visibility} /></div>

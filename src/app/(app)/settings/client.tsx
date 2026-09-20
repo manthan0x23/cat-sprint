@@ -29,6 +29,20 @@ export function SettingsForm({ action, submit, className, aside, children }: {
   );
 }
 
+// Controlled so a rejected save keeps what was typed: React resets uncontrolled inputs in a
+// form once its action finishes, which would otherwise snap the field back to the saved name.
+export function UsernameField({ initial }: { initial: string }) {
+  const [v, setV] = useState(initial);
+  return (
+    <div className="relative mt-1">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
+      <input name="username" required pattern="[a-z0-9_]{3,20}" maxLength={20} value={v}
+        onChange={(e) => setV(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+        className="input !pl-7 num" />
+    </div>
+  );
+}
+
 export function PushToggle({ subscribed }: { subscribed: number }) {
   const [state, setState] = useState<string | null>(null);
   const [pending, start] = useTransition();

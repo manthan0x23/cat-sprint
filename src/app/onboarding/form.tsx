@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import clsx from "clsx";
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { checkUsername, completeOnboarding } from "../actions";
 import { SYSTEM_TEMPLATES } from "@/lib/templates";
 import { generatePlan } from "@/lib/plan-generator";
@@ -31,6 +31,7 @@ export function OnboardingForm({ today, suggested }: { today: string; suggested:
   const [tpl, setTpl] = useState(SYSTEM_TEMPLATES[0].id);
   const [start, setStart] = useState(7);
   const [end, setEnd] = useState(23);
+  const [state, formAction] = useActionState(completeOnboarding, null);
 
   const preview = useMemo(() => {
     const t = SYSTEM_TEMPLATES.find((x) => x.id === tpl)!;
@@ -42,7 +43,7 @@ export function OnboardingForm({ today, suggested }: { today: string; suggested:
   }, [tpl, weak, today]);
 
   return (
-    <form action={completeOnboarding} className="mt-8 space-y-4">
+    <form action={formAction} className="mt-8 space-y-4">
       <Step n={0} title="Username & profile visibility" hint="Friends find you by this. Your profile lives at /u/username.">
         <div className="relative max-w-xs">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">@</span>
@@ -126,7 +127,12 @@ export function OnboardingForm({ today, suggested }: { today: string; suggested:
         </div>
       </Step>
 
-      <div className="flex justify-end pt-2"><Submit disabled={!uState?.ok} /></div>
+      <div className="flex items-center justify-end gap-3 pt-2">
+        {state && !state.ok && (
+          <p className="text-[13px] text-bad inline-flex items-center gap-1.5"><AlertTriangle size={14} /> {state.error}</p>
+        )}
+        <Submit disabled={!uState?.ok} />
+      </div>
     </form>
   );
 }
