@@ -25,6 +25,13 @@ async function uid() {
   return s.user.id;
 }
 
+/** True when the session's user row still exists — see the note in requireUser(). */
+async function userRowExists(userId: string) {
+  return !!(await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true } }));
+}
+
+const STALE_SESSION = "Your sign-in is out of date. Sign out and sign in again to continue.";
+
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const sectionalsSchema = z.object({
   varc: z.coerce.number().int().min(0).max(5),
@@ -63,6 +70,7 @@ function usernameError(username: string, reason: string) {
 // ---------- Onboarding ----------
 export async function completeOnboarding(_prev: FormResult | null, formData: FormData): Promise<FormResult> {
   const userId = await uid();
+  if (!(await userRowExists(userId))) return { ok: false, error: STALE_SESSION };
   const parsed = onboardSchema.safeParse({
     ...goalFields(formData),
     username: formData.get("username") ?? "",

@@ -12,6 +12,11 @@ export async function requireUser() {
   const session = await auth();
   const id = session?.user?.id;
   if (!id) redirect("/");
+  // Sessions are JWTs, so a cookie outlives the row it points at: after the database was
+  // replaced, old cookies carried user ids that no longer exist. Writing anything for such a
+  // session fails its foreign key and crashes the page, so send them to sign in again instead.
+  const row = await db.query.users.findFirst({ where: eq(users.id, id), columns: { id: true } });
+  if (!row) redirect("/api/session/stale");
   return { id, name: session.user?.name ?? "", email: session.user?.email ?? "", image: session.user?.image ?? null };
 }
 
