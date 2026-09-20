@@ -1,9 +1,33 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { Bell, BellRing, Send } from "lucide-react";
+import { Bell, BellRing, Check, Send } from "lucide-react";
+import type { FormResult } from "@/lib/forms";
 import { resetPlanFromToday, sendTestNotification } from "@/app/actions";
 import { subscribeThisDevice } from "@/lib/push-client";
+
+type SettingsAction = (prev: FormResult | null, formData: FormData) => Promise<FormResult>;
+
+// Every settings form goes through here: the action reports problems as a value, which lands
+// next to the button, instead of throwing and blanking the page.
+export function SettingsForm({ action, submit, className, aside, children }: {
+  action: SettingsAction; submit: string; className?: string; aside?: React.ReactNode; children: React.ReactNode;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  return (
+    <form action={formAction} className={className}>
+      {children}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {aside ?? <span />}
+        <div className="flex items-center gap-3 ml-auto">
+          {state && !state.ok && <span className="text-[12.5px] text-bad">{state.error}</span>}
+          {state?.ok && <span className="text-[12.5px] text-good inline-flex items-center gap-1"><Check size={12} /> Saved</span>}
+          <SubmitButton>{submit}</SubmitButton>
+        </div>
+      </div>
+    </form>
+  );
+}
 
 export function PushToggle({ subscribed }: { subscribed: number }) {
   const [state, setState] = useState<string | null>(null);

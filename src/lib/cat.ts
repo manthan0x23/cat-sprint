@@ -6,11 +6,22 @@ export const EXAM_DATE = "2026-11-29";
 export const SECTIONS = ["qa", "rc", "va", "dilr"] as const;
 export type Section = (typeof SECTIONS)[number];
 
-export const SECTION_META: Record<Section, { label: string; short: string; unit: string; unitOne: string; step: number }> = {
-  qa: { label: "Quant", short: "QA", unit: "Qs", unitOne: "Q", step: 5 },
-  rc: { label: "Reading Comp.", short: "RC", unit: "passages", unitOne: "passage", step: 1 },
-  va: { label: "Verbal Ability", short: "VA", unit: "Qs", unitOne: "Q", step: 5 },
-  dilr: { label: "DI & LR", short: "DILR", unit: "sets", unitOne: "set", step: 1 },
+// `max` is the ceiling for ONE day's target in a section. Single source of truth: the server
+// schemas validate against it and every stepper/input clamps to it, so the UI can never submit
+// a value the action would reject. Weekly goals allow 7x (see WEEKLY_MAX).
+export const SECTION_META: Record<Section, { label: string; short: string; unit: string; unitOne: string; step: number; max: number }> = {
+  qa: { label: "Quant", short: "QA", unit: "Qs", unitOne: "Q", step: 5, max: 500 },
+  rc: { label: "Reading Comp.", short: "RC", unit: "passages", unitOne: "passage", step: 1, max: 200 },
+  va: { label: "Verbal Ability", short: "VA", unit: "Qs", unitOne: "Q", step: 5, max: 200 },
+  dilr: { label: "DI & LR", short: "DILR", unit: "sets", unitOne: "set", step: 1, max: 50 },
+};
+
+/** A weekly goal covers up to 7 days, so it allows 7x a day's ceiling. */
+export const WEEKLY_MAX: Record<Section, number> = {
+  qa: SECTION_META.qa.max * 7,
+  rc: SECTION_META.rc.max * 7,
+  va: SECTION_META.va.max * 7,
+  dilr: SECTION_META.dilr.max * 7,
 };
 
 // ---------- Realistic time model ----------

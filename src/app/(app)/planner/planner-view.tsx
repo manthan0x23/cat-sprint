@@ -200,7 +200,7 @@ function StepRow({ label, hint, value, step = 1, max = 500, onChange }: { label:
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button type="button" className={btn} onClick={() => set(value - step)} disabled={value <= 0} aria-label={`Less ${label}`}><Minus size={14} /></button>
-        <input type="number" inputMode="numeric" min={0} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label}
+        <input type="number" inputMode="numeric" min={0} max={max} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label}
           className="h-8 w-12 text-center num font-semibold text-[15px] bg-transparent outline-none rounded-md focus:bg-panel-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
         <button type="button" className={btn} onClick={() => set(value + step)} disabled={value >= max} aria-label={`More ${label}`}><Plus size={14} /></button>
       </div>
@@ -212,7 +212,7 @@ function TargetRows({ value, onChange }: { value: Targets; onChange: (t: Targets
   return (
     <div className="rounded-xl border border-line divide-y divide-line bg-panel">
       {SECTIONS.map((k) => (
-        <StepRow key={k} label={SECTION_META[k].label} hint={SECTION_META[k].unit} value={value[k]} step={SECTION_META[k].step}
+        <StepRow key={k} label={SECTION_META[k].label} hint={SECTION_META[k].unit} value={value[k]} step={SECTION_META[k].step} max={SECTION_META[k].max}
           onChange={(n) => onChange({ ...value, [k]: n })} />
       ))}
     </div>
@@ -393,8 +393,8 @@ function Sheet({ title, subtitle, onClose, children, footer, wide }: { title: st
 }
 
 function Stepper({ s, value, onChange }: { s: (typeof SECTIONS)[number]; value: number; onChange: (n: number) => void }) {
-  const { short, unit, step } = SECTION_META[s];
-  const set = (n: number) => onChange(Math.max(0, Math.min(500, Math.round(n) || 0)));
+  const { short, unit, step, max } = SECTION_META[s];
+  const set = (n: number) => onChange(Math.max(0, Math.min(max, Math.round(n) || 0)));
   const btn = "size-9 shrink-0 grid place-items-center rounded-lg border border-line bg-panel text-ink-2 hover:border-line-2 active:scale-95 transition disabled:opacity-40";
   return (
     <div className="rounded-xl border border-line bg-panel-2 p-2">
@@ -404,9 +404,9 @@ function Stepper({ s, value, onChange }: { s: (typeof SECTIONS)[number]; value: 
       </div>
       <div className="mt-1.5 flex items-center gap-1">
         <button type="button" className={btn} onClick={() => set(value - step)} disabled={value <= 0} aria-label={`Less ${short}`}><Minus size={14} /></button>
-        <input type="number" inputMode="numeric" min={0} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={`${short} ${unit}`}
+        <input type="number" inputMode="numeric" min={0} max={max} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={`${short} ${unit}`}
           className="h-9 w-full min-w-[3ch] flex-1 text-center num font-medium text-[15px] bg-transparent outline-none rounded-md focus:bg-panel [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-        <button type="button" className={btn} onClick={() => set(value + step)} aria-label={`More ${short}`}><Plus size={14} /></button>
+        <button type="button" className={btn} onClick={() => set(value + step)} disabled={value >= max} aria-label={`More ${short}`}><Plus size={14} /></button>
       </div>
     </div>
   );
@@ -438,6 +438,7 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
   const [mockName, setMockName] = useState(day.mockName ?? "");
   const [note, setNote] = useState(day.note ?? "");
   const [sectionals, setSectionals] = useState<Sectionals | null>(day.sectionals);
+  const [error, setError] = useState<string | null>(null);
   const tag = type === day.type ? day.tag : type === "rest" ? "Rest" : null;
   const [pending, start] = useTransition();
   const tpl = templates[0];
@@ -452,14 +453,24 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
   return (
     <Sheet title={fmtDate(day.date, { weekday: "long", day: "numeric", month: "long" })} subtitle={day.phase ? `${day.phase} phase` : undefined} onClose={onClose}
       footer={
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] text-muted num">{type === "rest" ? "Rest day" : `≈ ${minutesToH(plannedMinutes({ date: day.date, type, targets }))} of work`}</span>
-          <div className="flex gap-2">
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-accent" disabled={pending}
-              onClick={() => start(async () => { await updateDay(day.date, { type, targets, mockName, note, tag, sectionals: type === "rest" ? null : sectionals }); onClose(); })}>
-              {pending ? "Saving…" : "Save day"}
-            </button>
+        <div className="space-y-2">
+          {error && <p className="text-[12.5px] text-bad">{error}</p>}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] text-muted num">{type === "rest" ? "Rest day" : `≈ ${minutesToH(plannedMinutes({ date: day.date, type, targets }))} of work`}</span>
+            <div className="flex gap-2">
+              <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+              <button className="btn btn-accent" disabled={pending}
+                onClick={() => start(async () => {
+                  try {
+                    await updateDay(day.date, { type, targets, mockName, note, tag, sectionals: type === "rest" ? null : sectionals });
+                    onClose();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Couldn't save this day. Check the targets and try again.");
+                  }
+                })}>
+                {pending ? "Saving…" : "Save day"}
+              </button>
+            </div>
           </div>
         </div>
       }>
@@ -467,7 +478,7 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
       {type === "mock" && (
         <label className="block mt-4">
           <span className="label">Mock name</span>
-          <input className="input mt-1" value={mockName} onChange={(e) => setMockName(e.target.value)} placeholder="e.g. SIMCAT 5, AIMCAT 2612" />
+          <input className="input mt-1" value={mockName} maxLength={80} onChange={(e) => setMockName(e.target.value)} placeholder="e.g. SIMCAT 5, AIMCAT 2612" />
         </label>
       )}
       {type !== "rest" && (
@@ -483,7 +494,7 @@ function DayEditor({ day, onClose, templates }: { day: Day; onClose: () => void;
       )}
       <label className="block mt-4">
         <span className="label">Note</span>
-        <input className="input mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Office offsite, only evening free" />
+        <input className="input mt-1" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Office offsite, only evening free" />
       </label>
     </Sheet>
   );

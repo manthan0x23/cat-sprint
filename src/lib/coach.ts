@@ -120,6 +120,7 @@ export function facts(s: UserState, ctx?: CoachContext) {
     s.profile.why ? `Their own "why", in their words: "${s.profile.why}"` : "",
     s.profile.weakSections.length ? `Weak sections: ${s.profile.weakSections.map((w) => SECTION_META[w as keyof typeof SECTION_META]?.short ?? w).join(", ")}.` : "",
     t ? `Today: ${t.type} day${t.mockName ? ` (${t.mockName})` : ""}. Targets: ${SECTIONS.map((k) => unitLabel(k, t.targets[k])).join(", ")}.` : "No plan today.",
+    t?.sectionals ? `Sectionals planned today: ${(["varc", "dilr", "qa"] as const).filter((k) => t.sectionals![k] > 0).map((k) => `${t.sectionals![k]} ${k.toUpperCase()}`).join(", ")}.` : "",
     `Done today: ${SECTIONS.map((k) => `${SECTION_META[k].short} ${s.todayDone[k]}`).join(", ")} = ${Math.round((s.stats.today.ratio || 0) * 100)}% of today's work.`,
     rem.text ? `Still left today: ${rem.text} (~${minutesToH(rem.minutes)}).` : "Nothing left today.",
     `Time now: ${fmtHour(s.hour)} IST. Study window ends ${fmtHour(s.profile.studyEndHour)} (${Math.max(0, s.profile.studyEndHour - s.hour).toFixed(1)}h left).`,

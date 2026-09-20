@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { cleanSectionals, generatePhased, generatePlan, presetPhases } from "../plan-generator";
 import { SYSTEM_TEMPLATES } from "../templates";
 import { computeStats, projectScore, skipImpact, plannedMinutes, expectedFraction } from "../progress";
-import { istNow, daysToExam, weekday, unitMinutes } from "../cat";
+import { istNow, daysToExam, weekday, unitMinutes, SECTIONS, SECTION_META } from "../cat";
+import { goalFields, goalSchema, targetsSchema, weeklyTargetsSchema } from "../forms";
 
 const manthan = SYSTEM_TEMPLATES[0];
 
@@ -283,5 +284,58 @@ describe("planned sectionals", () => {
   it("cleanSectionals drops all-zero counts", () => {
     expect(cleanSectionals({ varc: 0, dilr: 0, qa: 0 })).toBeNull();
     expect(cleanSectionals({ varc: 2, dilr: 0, qa: 0 })).toEqual({ varc: 2, dilr: 0, qa: 0 });
+  });
+});
+
+// Regression guard: the Settings "Goal" form once posted fewer fields than its schema required
+// (onboarding had gained a `visibility` field), so every Save crashed the page.
+describe("settings forms match their schemas", () => {
+  const goalForm = () => {
+    const fd = new FormData();
+    fd.set("targetPercentile", "99");
+    fd.set("dreamColleges", "IIM A, IIM B");
+    fd.set("why", "Move into business leadership.");
+    fd.append("weakSections", "dilr");
+    fd.set("studyStartHour", "7");
+    fd.set("studyEndHour", "23");
+    return fd;
+  };
+
+  it("accepts exactly what the Goal form posts", () => {
+    expect(goalSchema.safeParse(goalFields(goalForm())).success).toBe(true);
+  });
+
+  it("accepts a goal with no weak sections ticked", () => {
+    const fd = goalForm();
+    fd.delete("weakSections");
+    expect(goalSchema.safeParse(goalFields(fd)).success).toBe(true);
+  });
+
+  it("needs nothing the Goal form doesn't have", () => {
+    // Onboarding may add its own fields; it must not add them to the shared goal schema.
+    expect(Object.keys(goalSchema.shape).sort()).toEqual(Object.keys(goalFields(goalForm())).sort());
+  });
+
+  it("rejects a study window that ends before it starts only via the action", () => {
+    const fd = goalForm();
+    fd.set("studyEndHour", "24");
+    expect(goalSchema.safeParse(goalFields(fd)).success).toBe(true); // hours are valid on their own
+  });
+});
+
+describe("target bounds are shared by the UI and the schemas", () => {
+  it("accepts each section at its stepper ceiling", () => {
+    const atMax = { qa: SECTION_META.qa.max, rc: SECTION_META.rc.max, va: SECTION_META.va.max, dilr: SECTION_META.dilr.max };
+    expect(targetsSchema.safeParse(atMax).success).toBe(true);
+  });
+  it("rejects one past the ceiling", () => {
+    for (const k of SECTIONS) {
+      const over = { qa: 0, rc: 0, va: 0, dilr: 0, [k]: SECTION_META[k].max + 1 };
+      expect(targetsSchema.safeParse(over).success).toBe(false);
+    }
+  });
+  it("a whole week of max days still fits a weekly goal", () => {
+    const week = { qa: SECTION_META.qa.max * 7, rc: SECTION_META.rc.max * 7, va: SECTION_META.va.max * 7, dilr: SECTION_META.dilr.max * 7 };
+    expect(weeklyTargetsSchema.safeParse(week).success).toBe(true);
   });
 });

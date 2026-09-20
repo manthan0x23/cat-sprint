@@ -8,6 +8,7 @@ import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/db";
 import { dayPlans, friendships, mockResults, sectionalResults, notificationsSent, weeklyGoals, profiles, progressLogs, templates, users, type PhaseDef, type PushSub, type Sectionals, type Targets } from "@/db/schema";
 import { addDays, EXAM_DATE, istNow, SECTIONS, weekStartOf, ZERO, type Section } from "@/lib/cat";
+import { goalFields, goalSchema, onboardSchema, sectionSchema, targetsSchema, weeklyTargetsSchema, type FormResult } from "@/lib/forms";
 import { cleanSectionals, generatePlan, phaseFor, weekIdx } from "@/lib/plan-generator";
 import { SYSTEM_TEMPLATES, applyWeakness, type TemplateDef } from "@/lib/templates";
 import { sendEmail, sendPush } from "@/lib/notify";
@@ -24,19 +25,12 @@ async function uid() {
   return s.user.id;
 }
 
-const targetsSchema = z.object({
-  qa: z.coerce.number().int().min(0).max(500),
-  rc: z.coerce.number().int().min(0).max(200),
-  va: z.coerce.number().int().min(0).max(200),
-  dilr: z.coerce.number().int().min(0).max(50),
-});
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const sectionalsSchema = z.object({
   varc: z.coerce.number().int().min(0).max(5),
   dilr: z.coerce.number().int().min(0).max(5),
   qa: z.coerce.number().int().min(0).max(5),
 }).nullish().transform((v) => cleanSectionals(v));
-const sectionSchema = z.enum(SECTIONS);
 
 export async function signInWithGoogle() {
   await signIn("google", { redirectTo: "/dashboard" });
@@ -62,28 +56,11 @@ async function writePlan(userId: string, days: ReturnType<typeof generatePlan>, 
 }
 
 // ---------- Onboarding ----------
-const onboardSchema = z.object({
-  username: z.string(),
-  targetPercentile: z.coerce.number().min(50).max(100),
-  dreamColleges: z.string().max(300),
-  why: z.string().max(1000),
-  weakSections: z.array(sectionSchema),
-  studyStartHour: z.coerce.number().int().min(0).max(23),
-  studyEndHour: z.coerce.number().int().min(1).max(24),
-  templateId: z.string().min(1),
-  visibility: z.enum(["friends", "public"]),
-});
-
 export async function completeOnboarding(formData: FormData) {
   const userId = await uid();
   const data = onboardSchema.parse({
+    ...goalFields(formData),
     username: formData.get("username") ?? "",
-    targetPercentile: formData.get("targetPercentile"),
-    dreamColleges: formData.get("dreamColleges") ?? "",
-    why: formData.get("why") ?? "",
-    weakSections: formData.getAll("weakSections"),
-    studyStartHour: formData.get("studyStartHour"),
-    studyEndHour: formData.get("studyEndHour"),
     templateId: formData.get("templateId"),
     visibility: formData.get("visibility"),
   });
@@ -108,22 +85,18 @@ export async function completeOnboarding(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function updateGoal(formData: FormData) {
+export async function updateGoal(_prev: FormResult | null, formData: FormData): Promise<FormResult> {
   const userId = await uid();
-  const data = onboardSchema.omit({ templateId: true, username: true }).parse({
-    targetPercentile: formData.get("targetPercentile"),
-    dreamColleges: formData.get("dreamColleges") ?? "",
-    why: formData.get("why") ?? "",
-    weakSections: formData.getAll("weakSections"),
-    studyStartHour: formData.get("studyStartHour"),
-    studyEndHour: formData.get("studyEndHour"),
-  });
-  if (data.studyEndHour <= data.studyStartHour) throw new Error("Study window must end after it starts");
+  const parsed = goalSchema.safeParse(goalFields(formData));
+  if (!parsed.success) return { ok: false, error: "Check your target percentile and study hours." };
+  const data = parsed.data;
+  if (data.studyEndHour <= data.studyStartHour) return { ok: false, error: "Study window must end after it starts." };
   await db
     .update(profiles)
     .set({ ...data, dreamColleges: data.dreamColleges.split(",").map((s) => s.trim()).filter(Boolean) })
     .where(eq(profiles.userId, userId));
   refresh();
+  return { ok: true };
 }
 
 // ---------- Progress logging ----------
@@ -327,19 +300,21 @@ export async function savePushSubscription(sub: PushSub) {
   refresh();
 }
 
-export async function saveNotificationSettings(formData: FormData) {
+export async function saveNotificationSettings(_prev: FormResult | null, formData: FormData): Promise<FormResult> {
   const userId = await uid();
-  const data = z.object({
+  const parsed = z.object({
     notifyPush: z.boolean(),
     notifyEmail: z.boolean(),
     coachIntensity: z.enum(["gentle", "firm", "strict"]),
-  }).parse({
+  }).safeParse({
     coachIntensity: formData.get("coachIntensity") ?? "firm",
     notifyPush: formData.get("notifyPush") === "on",
     notifyEmail: formData.get("notifyEmail") === "on",
   });
-  await db.update(profiles).set(data).where(eq(profiles.userId, userId));
+  if (!parsed.success) return { ok: false, error: "Couldn't save those notification settings." };
+  await db.update(profiles).set(parsed.data).where(eq(profiles.userId, userId));
   refresh();
+  return { ok: true };
 }
 
 export async function sendTestNotification(): Promise<{ push: string; email: string }> {
@@ -391,14 +366,16 @@ export async function checkUsername(raw: string): Promise<{ ok: true } | { ok: f
   return taken ? { ok: false, reason: "Taken" } : { ok: true };
 }
 
-export async function saveProfileSettings(formData: FormData) {
+export async function saveProfileSettings(_prev: FormResult | null, formData: FormData): Promise<FormResult> {
   const userId = await uid();
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const check = await checkUsername(username);
-  if (!check.ok) throw new Error(`Username: ${check.reason}`);
-  const visibility = z.enum(["friends", "public"]).parse(formData.get("visibility"));
-  await db.update(profiles).set({ username, visibility, visibilityChosen: true, showMocks: formData.get("showMocks") === "on" }).where(eq(profiles.userId, userId));
+  if (!check.ok) return { ok: false, error: `Username: ${check.reason}` };
+  const visibility = z.enum(["friends", "public"]).safeParse(formData.get("visibility"));
+  if (!visibility.success) return { ok: false, error: "Pick who can see your profile." };
+  await db.update(profiles).set({ username, visibility: visibility.data, visibilityChosen: true, showMocks: formData.get("showMocks") === "on" }).where(eq(profiles.userId, userId));
   refresh();
+  return { ok: true };
 }
 
 export async function setVisibility(visibility: "friends" | "public") {
@@ -468,7 +445,9 @@ export async function sendNudgeToFriend(otherUserId: string): Promise<string> {
 // ---------- Weekly goal (lock-once) ----------
 export async function lockWeeklyGoal(input: { targets: Targets; mocks: number }): Promise<{ ok: boolean; message: string }> {
   const userId = await uid();
-  const targets = targetsSchema.parse(input.targets);
+  const parsed = weeklyTargetsSchema.safeParse(input.targets);
+  if (!parsed.success) return { ok: false, message: "Those weekly targets are out of range" };
+  const targets = parsed.data;
   const mocks = z.coerce.number().int().min(0).max(7).parse(input.mocks);
   if (!SECTIONS.some((k) => targets[k] > 0)) return { ok: false, message: "Set at least one target" };
   const weekStart = weekStartOf(istNow().date);

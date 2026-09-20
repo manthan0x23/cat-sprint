@@ -3,7 +3,7 @@ import { useState, useTransition } from "react";
 import clsx from "clsx";
 import { Lock } from "lucide-react";
 import type { Targets } from "@/db/schema";
-import { fmtDate, SECTIONS, SECTION_META } from "@/lib/cat";
+import { fmtDate, SECTIONS, SECTION_META, WEEKLY_MAX } from "@/lib/cat";
 import type { WeekStatus } from "@/lib/week";
 import { lockWeeklyGoal } from "@/app/actions";
 
@@ -54,8 +54,10 @@ function Bar({ label, done, goal, hint }: { label: string; done: number; goal: n
 }
 
 function SetGoal({ week, range }: { week: WeekStatus; range: string }) {
-  const [t, setT] = useState<Targets>(week.planned);
-  const [mocks, setMocks] = useState(week.plannedMocks);
+  // Prefilled from the week's planned total, clamped: a heavy plan can add up past the ceiling.
+  const [t, setT] = useState<Targets>(() =>
+    SECTIONS.reduce((acc, k) => ({ ...acc, [k]: Math.min(WEEKLY_MAX[k], week.planned[k]) }), {} as Targets));
+  const [mocks, setMocks] = useState(Math.min(7, week.plannedMocks));
   const [confirm, setConfirm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -69,12 +71,14 @@ function SetGoal({ week, range }: { week: WeekStatus; range: string }) {
         {SECTIONS.map((k) => (
           <label key={k}>
             <span className="label">{SECTION_META[k].short}</span>
-            <input type="number" min={0} value={t[k]} onChange={(e) => { setT({ ...t, [k]: Math.max(0, Number(e.target.value)) }); setConfirm(false); }} className="input num mt-1 !px-2" />
+            <input type="number" min={0} max={WEEKLY_MAX[k]} value={t[k]}
+              onChange={(e) => { setT({ ...t, [k]: Math.min(WEEKLY_MAX[k], Math.max(0, Math.round(Number(e.target.value)) || 0)) }); setConfirm(false); }}
+              className="input num mt-1 !px-2" />
           </label>
         ))}
         <label>
           <span className="label">Mocks</span>
-          <input type="number" min={0} max={7} value={mocks} onChange={(e) => { setMocks(Math.max(0, Number(e.target.value))); setConfirm(false); }} className="input num mt-1 !px-2" />
+          <input type="number" min={0} max={7} value={mocks} onChange={(e) => { setMocks(Math.min(7, Math.max(0, Math.round(Number(e.target.value)) || 0))); setConfirm(false); }} className="input num mt-1 !px-2" />
         </label>
       </div>
       <p className="mt-2 text-[11.5px] text-muted">RC in passages, DILR in sets, QA/VA in questions.</p>
@@ -84,7 +88,12 @@ function SetGoal({ week, range }: { week: WeekStatus; range: string }) {
           <button className="btn btn-primary" onClick={() => setConfirm(true)}>Lock weekly goal</button>
         ) : (
           <button className="btn btn-accent" disabled={pending}
-            onClick={() => start(async () => { const r = await lockWeeklyGoal({ targets: t, mocks }); if (!r.ok) setMsg(r.message); })}>
+            onClick={() => start(async () => {
+              try {
+                const r = await lockWeeklyGoal({ targets: t, mocks });
+                if (!r.ok) setMsg(r.message);
+              } catch { setMsg("Couldn't lock the goal. Try again."); }
+            })}>
             {pending ? "Locking…" : "Confirm: can't change until Sunday"}
           </button>
         )}
