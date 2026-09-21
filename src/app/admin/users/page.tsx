@@ -20,7 +20,9 @@ export default async function AdminUsersPage() {
     );
   }
   const rows = await db
-    .select({ id: users.id, name: users.name, email: users.email, image: users.image, username: profiles.username })
+    .select({ id: users.id, name: users.name, email: users.email, image: users.image, username: profiles.username,
+      targetPercentile: profiles.targetPercentile, dreamColleges: profiles.dreamColleges, weakSections: profiles.weakSections,
+      why: profiles.why, studyStartHour: profiles.studyStartHour, studyEndHour: profiles.studyEndHour })
     .from(users)
     .leftJoin(profiles, eq(profiles.userId, users.id))
     .orderBy(asc(users.name));
