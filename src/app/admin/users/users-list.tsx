@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
@@ -35,8 +35,23 @@ function Details({ u }: { u: Row }) {
 export function UsersList({ rows }: { rows: Row[] }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [college, setCollege] = useState("");
+  const [hasWhy, setHasWhy] = useState(false);
+  // Every dream college anyone listed, matched case-insensitively ("iima" and "IIMA" are one option).
+  const colleges = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const c of rows.flatMap((u) => u.dreamColleges ?? [])) {
+      const key = c.trim().toLowerCase();
+      if (key && !byKey.has(key)) byKey.set(key, c.trim());
+    }
+    return [...byKey].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
   const needle = q.trim().toLowerCase();
-  const shown = needle ? rows.filter((u) => [u.name, u.email, u.username].some((v) => v?.toLowerCase().includes(needle))) : rows;
+  const filtering = !!(needle || college || hasWhy);
+  const shown = rows.filter((u) =>
+    (!needle || [u.name, u.email, u.username].some((v) => v?.toLowerCase().includes(needle))) &&
+    (!college || (u.dreamColleges ?? []).some((c) => c.trim().toLowerCase() === college)) &&
+    (!hasWhy || !!u.why?.trim()));
   const toggle = (id: string) => setOpen((prev) => {
     const next = new Set(prev);
     if (!next.delete(id)) next.add(id);
@@ -49,7 +64,16 @@ export function UsersList({ rows }: { rows: Row[] }) {
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
         <input className="input !pl-9" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email or @username" autoFocus aria-label="Search users" />
       </label>
-      {needle && <p className="mt-2 text-[12px] text-muted num">{shown.length} of {rows.length} match</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select className="input !w-auto !h-9 text-[13px]" value={college} onChange={(e) => setCollege(e.target.value)} aria-label="Filter by dream college">
+          <option value="">All colleges</option>
+          {colleges.map(([key, label]) => <option key={key} value={key}>Wants {label}</option>)}
+        </select>
+        <label className="chip cursor-pointer select-none !h-9">
+          <input type="checkbox" checked={hasWhy} onChange={(e) => setHasWhy(e.target.checked)} /> Wrote a why
+        </label>
+      </div>
+      {filtering && <p className="mt-2 text-[12px] text-muted num">{shown.length} of {rows.length} match</p>}
 
       <ul className="mt-3 card divide-y divide-line overflow-hidden">
         {shown.map((u) => {
