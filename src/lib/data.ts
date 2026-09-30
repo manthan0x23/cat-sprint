@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { dayPlans, mockResults, profiles, progressLogs, users, weeklyGoals } from "@/db/schema";
 import { addDays, istNow, weekStartOf } from "./cat";
 import { weekStatus } from "./week";
+import { recordVisit } from "./activity";
 import { computeStats, projectScore, skipImpact, sumLogs } from "./progress";
 
 export async function requireUser() {
@@ -17,6 +18,7 @@ export async function requireUser() {
   // session fails its foreign key and crashes the page, so send them to sign in again instead.
   const row = await db.query.users.findFirst({ where: eq(users.id, id), columns: { id: true } });
   if (!row) redirect("/api/session/stale");
+  recordVisit(id);
   return { id, name: session.user?.name ?? "", email: session.user?.email ?? "", image: session.user?.image ?? null };
 }
 

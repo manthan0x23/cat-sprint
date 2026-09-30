@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { Lock } from "lucide-react";
-import { lockAdmin, unlockAdmin } from "../actions";
+import { lockAdmin, unlockAdmin } from "./actions";
 
 export function UnlockForm() {
   const [state, action, pending] = useActionState(unlockAdmin, null);

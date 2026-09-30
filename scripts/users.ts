@@ -1,9 +1,9 @@
-// `npm run users`: opens the local admin users page, starting `next dev` first if it isn't running.
+// `npm run users`: opens the local admin analytics page, starting `next dev` first if it isn't running.
 // The page lives inside the app (src/app/admin/users) so it shares the app's DB connection.
 import { spawn } from "node:child_process";
 
 const port = Number(process.env.PORT ?? 3000);
-const url = `http://localhost:${port}/admin/users`;
+const url = `http://localhost:${port}/admin`;
 
 const up = () => fetch(`http://localhost:${port}/`, { redirect: "manual" }).then(() => true, () => false);
 

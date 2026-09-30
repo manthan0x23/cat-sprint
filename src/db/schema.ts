@@ -231,6 +231,20 @@ export const weeklyGoals = pgTable(
   (t) => [uniqueIndex("weekly_goal_user_week").on(t.userId, t.weekStart)],
 );
 
+// One row per user per IST day they used the app: how many requests (page loads + actions) and when.
+// Written by recordVisit() in src/lib/activity.ts; read only by the admin analytics page.
+export const userActivity = pgTable(
+  "user_activity",
+  {
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    hits: integer("hits").notNull().default(1),
+    firstAt: timestamp("firstAt").notNull().defaultNow(),
+    lastAt: timestamp("lastAt").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.date] }), index("user_activity_date").on(t.date)],
+);
+
 // Written by scripts/migrate.ts; declared here so `drizzle-kit push` doesn't drop it.
 export const migrations = pgTable("_migrations", {
   name: text("name").primaryKey(),

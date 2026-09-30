@@ -15,7 +15,7 @@ const MODEL = process.env.OPENROUTER_MODEL || "qwen/qwen3.8-27b:free";
 // OpenRouter tries these in order if the primary is down or rate-limited (same free quota).
 const FALLBACKS = (process.env.OPENROUTER_FALLBACKS || "google/gemma-4-31b-it:free,deepseek/deepseek-v4-flash-0731:free")
   .split(",").map((m) => m.trim()).filter(Boolean);
-const BUDGET = Number(process.env.AI_DAILY_BUDGET || 45);
+export const BUDGET = Number(process.env.AI_DAILY_BUDGET || 45);
 export const USER_DAILY = Number(process.env.AI_USER_DAILY || 2);
 const AUTO_AI_KINDS = new Set(["brief"]);
 
